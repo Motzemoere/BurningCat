@@ -29,6 +29,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 
 #### Sidebar
 - Size selector 16x16,32x32,64x64,128x128, custom (max 256x256)
+- Upscale 2x, 3x or 4x: every pixel becomes a 2x2, 3x3 or 4x4 block (nearest-neighbour), for finer detail work; refused if the result exceeds 256x256
 - Zoom zoom in and out of the canvas, especially important for bigger canvas
 - Grid toggle, shows pixel borders
 - Pixel drawer (left click draws a pixel right click removes a pixel, removed pixels are transparent)
@@ -82,6 +83,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - s save
 - o load
 - e export
+- u upscale
 - q quit
 - esc cancel selection / shape in progress
 - ctrl+z undo

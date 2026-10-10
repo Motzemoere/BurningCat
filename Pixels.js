@@ -260,6 +260,14 @@ function resize(img, nw, nh) {
   return out
 }
 
+// Nearest-neighbour upscale: every pixel becomes a k x k block.
+function scale(img, k) {
+  var out = create(img.w * k, img.h * k)
+  for (var y = 0; y < out.h; y++)
+    for (var x = 0; x < out.w; x++) out.data[y * out.w + x] = img.data[Math.floor(y / k) * img.w + Math.floor(x / k)]
+  return out
+}
+
 // ------------------------------------------------------------------ palette
 
 // The n most used visible colors as "#rrggbb", most used first, ties by first

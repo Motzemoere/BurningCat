@@ -16,7 +16,7 @@ const load = (file, names) => {
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
   "fill", "line", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
-  "resize", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History"])
+  "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
 
 let pass = 0, fail = 0
@@ -103,6 +103,12 @@ group("resize")
   t("crop back restores", eq(s, i))
   const c = P.resize(img(5, 5, [...Array(25).keys()]), 2, 2)
   t("crop odd: extra removed right and top", c.data.join() === "11,12,16,17")
+}
+
+group("scale")
+{
+  const u = P.scale(img(2, 1, [RED, BLUE]), 2)
+  t("2x makes 2x2 blocks", u.w === 4 && u.h === 2 && u.data.join() === [RED, RED, BLUE, BLUE, RED, RED, BLUE, BLUE].join())
 }
 
 group("palette")

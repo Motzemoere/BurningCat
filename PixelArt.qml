@@ -289,6 +289,28 @@ Item {
     setImage(Pixels.resize(img, w, h))
   }
 
+  readonly property var upscaleFactors: [2, 3, 4]
+  property int upscaleIndex: 0
+
+  function upscale(k) {
+    closeDialog()
+    if (Math.max(imgW, imgH) * k > Pixels.MAX_SIDE) { say("Too big: max " + Pixels.MAX_SIDE + "x" + Pixels.MAX_SIDE); return }
+    commitSelection()
+    cancelShape()
+    pushHistory()
+    setImage(Pixels.scale(img, k))
+  }
+
+  function upscaleKey(event) {
+    if (event.key === Qt.Key_Escape) closeDialog()
+    else if (event.key === Qt.Key_Left || event.text === "h") upscaleIndex = Math.max(0, upscaleIndex - 1)
+    else if (event.key === Qt.Key_Right || event.text === "l") upscaleIndex = Math.min(upscaleFactors.length - 1, upscaleIndex + 1)
+    else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) upscale(upscaleFactors[upscaleIndex])
+    else if (upscaleFactors.indexOf(Number(event.text)) >= 0) upscale(Number(event.text))
+    else return false
+    return true
+  }
+
   // ------------------------------------------------------------ input
   function activate(keepRatio) {
     var p = { x: cursorX, y: cursorY }
@@ -354,6 +376,7 @@ Item {
     if (dialog === "files") return fileList.handleKey(event)
     if (dialog === "confirm") return confirm.handleKey(event)
     if (dialog === "export") return exportKey(event)
+    if (dialog === "upscale") return upscaleKey(event)
     if (dialog !== "") {
       if (event.key === Qt.Key_Escape) { closeDialog(); return true }
       return false
@@ -396,6 +419,7 @@ Item {
       case "s": save(); return true
       case "o": openFiles(); return true
       case "e": dialog = "export"; return true
+      case "u": dialog = "upscale"; return true
       case "q": root.requestClose(); return true
       case "g": grid = !grid; return true
       case "k": greyBg = !greyBg; writeState(); return true
@@ -774,6 +798,11 @@ Item {
               tooltipText: "Custom size (max 256x256)"
               onClicked: { widthField.text = String(root.imgW); heightField.text = String(root.imgH); root.dialog = "size"; widthField.forceActiveFocus() }
             }
+            IconButton {
+              text: "⤢"
+              tooltipText: "Upscale (u)"
+              onClicked: root.dialog = "upscale"
+            }
             IconButton { glyph: 0xf02c1; selected: root.grid; tooltipText: "Grid (g)"; onClicked: root.grid = !root.grid }
             IconButton { glyph: 0xf0139; selected: root.greyBg; tooltipText: "Grey background (k)"; onClicked: { root.greyBg = !root.greyBg; root.writeState() } }
             IconButton { glyph: 0xf06ec; tooltipText: "Zoom out (-)"; onClicked: root.zoom(-1) }
@@ -956,6 +985,29 @@ Item {
           }
         }
         Label { text: (root.imgW * root.exportScales[root.exportIndex]) + "x" + (root.imgH * root.exportScales[root.exportIndex]) + " px"; opacity: 0.6 }
+      }
+
+      Dialog {
+        anchors.fill: parent
+        opened: root.dialog === "upscale"
+        title: "Upscale (each pixel becomes a block)"
+        onCanceled: root.closeDialog()
+
+        Row {
+          spacing: Style.spacing.lg
+          Repeater {
+            model: root.upscaleFactors
+            Button {
+              required property int index
+              required property int modelData
+              text: modelData + "x"
+              bordered: true
+              hasCursor: root.upscaleIndex === index
+              onClicked: root.upscale(modelData)
+            }
+          }
+        }
+        Label { text: (root.imgW * root.upscaleFactors[root.upscaleIndex]) + "x" + (root.imgH * root.upscaleFactors[root.upscaleIndex]) + " px (max " + Pixels.MAX_SIDE + ")"; opacity: 0.6 }
       }
 
       Dialog {
