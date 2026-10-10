@@ -6,15 +6,35 @@ import qs.Ui
 import "Pixels.js" as Pixels
 import "Png.js" as Png
 
-// Bar widget whose panel is the pixel editor. Drawing logic lives in
-// Pixels.js / Png.js; this file holds editor state, input and file I/O.
-Panel {
+// Panel plugin that shows the pixel editor in a normal (tiled) Hyprland
+// window. Drawing logic lives in Pixels.js / Png.js; this file holds editor
+// state, input and file I/O.
+Item {
   id: root
-  moduleName: "motzemoere.pixelart"
-  ipcTarget: "motzemoere.pixelart"
 
-  implicitWidth: button.implicitWidth
-  implicitHeight: button.implicitHeight
+  property var shell: null       // host injection
+  property bool opened: false
+  property bool closingFromHost: false
+
+  function open(payloadJson) {
+    opened = true
+    window.visible = true
+    Qt.callLater(function() { keys.forceActiveFocus() })
+  }
+
+  // Host-initiated close (`shell hide`); the host already knows.
+  function close() {
+    closingFromHost = true
+    window.visible = false
+    closingFromHost = false
+    opened = false
+  }
+
+  // User-initiated close (q, esc, killactive): tell the host so toggle stays in sync.
+  function requestClose() {
+    if (shell && typeof shell.hide === "function") shell.hide("motzemoere.pixelart")
+    else close()
+  }
 
   readonly property string home: Quickshell.env("HOME")
   readonly property string dir: home + "/Pictures/PixelArt"
@@ -24,11 +44,12 @@ Panel {
   property int imgW: 32
   property int imgH: 32
   property var history: new Pixels.History()
-  property var colors: Pixels.mergePalette([], [], 10)
+  property var colors: Pixels.mergePalette([], [], Pixels.PALETTE_SIZE)
   property int slot: 0
   property string current: "#ffffff"
   property string tool: "pixel"
   property bool grid: false
+  property bool greyBg: false    // light grey instead of the checkerboard behind transparent pixels
   property int px: fitPx
   property int cursorX: 0
   property int cursorY: 0
@@ -45,7 +66,6 @@ Panel {
   property string dialog: ""
   property string note: ""
   property var pendingConfirm: null
-  property bool picking: false
   property string pipetteTarget: ""
   property string pickerMode: ""
 
@@ -58,7 +78,7 @@ Panel {
     { id: "fill", icon: 0xf0266, key: "b", label: "Color pot" },
     { id: "line", icon: 0xf055e, key: "l", label: "Line" },
     { id: "rectangle", icon: 0xf0763, key: "r", label: "Rectangle" },
-    { id: "circle", icon: 0xf0766, key: "c", label: "Circle" },
+    { id: "circle", icon: 0xf0766, key: "C", label: "Circle" },
     { id: "triangle", icon: 0xf0537, key: "t", label: "Triangle" },
     { id: "hexagon", icon: 0xf02d9, key: "h", label: "Hexagon" },
     { id: "octagon", icon: 0xf03c4, key: "O", label: "Octagon" },
@@ -72,13 +92,10 @@ Panel {
   }
 
   // ------------------------------------------------------------ view sizing
-  // The panel grows with the image size, never with zoom.
-  function viewSide(n) { return Math.round(Math.min(720, 200 + n * 4)) }
+  // The canvas fills whatever the window is tiled to.
   readonly property int chromeH: bottomRow.implicitHeight + fileField.implicitHeight + statusRow.implicitHeight + layout.spacing * 3
-  readonly property int maxViewW: panel.availableCardWidth > 0 ? panel.availableCardWidth - panel.verticalContentInset - sidebar.implicitWidth - topRow.spacing : 720
-  readonly property int maxViewH: panel.availableCardHeight > 0 ? panel.availableCardHeight - panel.verticalContentInset - chromeH : 720
-  readonly property int viewW: Math.max(64, Math.min(viewSide(imgW), maxViewW))
-  readonly property int viewH: Math.max(64, Math.min(viewSide(imgH), maxViewH))
+  readonly property int viewW: Math.max(64, window.width - 2 * layout.anchors.margins - sidebar.implicitWidth - topRow.spacing)
+  readonly property int viewH: Math.max(64, window.height - 2 * layout.anchors.margins - chromeH)
   readonly property int fitPx: Math.max(1, Math.floor(Math.min(viewW / imgW, viewH / imgH)))
 
   function zoom(direction) {
@@ -292,7 +309,7 @@ Panel {
   function cancel() {
     if (startPt) { cancelShape(); if (tool === "select") sel = null }
     else if (sel) commitSelection()
-    else root.close()
+    else root.requestClose()
   }
 
   function onPointerPressed(x, y, button, mods) {
@@ -359,8 +376,8 @@ Panel {
       else moveCursor(dx, dy)
       return true
     }
-    if (k === Qt.Key_Return || k === Qt.Key_Enter) { activate(ctrl); return true }
-    if (k === Qt.Key_Delete || k === Qt.Key_Backspace) {
+    if (k === Qt.Key_Space) { activate(ctrl); return true }
+    if (k === Qt.Key_Delete || k === Qt.Key_Backspace || event.text === "c") {
       if (sel) deleteSel()
       else { commitSelection(); pushHistory(); drawPoints([{ x: cursorX, y: cursorY }], 0) }
       return true
@@ -370,14 +387,18 @@ Panel {
 
     var t = event.text
     for (var i = 0; i < tools.length; i++) if (tools[i].key === t) { setTool(tools[i].id); return true }
+    // shift+1..0 by physical key, since the shifted characters differ per layout;
+    // xkb keycodes 10..19 are that row, which maps straight onto slots 11..20.
+    if (shift && event.nativeScanCode >= 10 && event.nativeScanCode <= 19) { selectSlot(event.nativeScanCode); return true }
     if (t >= "0" && t <= "9" && t.length === 1) { selectSlot((Number(t) + 9) % 10); return true }
     switch (t) {
       case "n": newImage(); return true
       case "s": save(); return true
       case "o": openFiles(); return true
       case "e": dialog = "export"; return true
-      case "q": root.close(); return true
+      case "q": root.requestClose(); return true
       case "g": grid = !grid; return true
+      case "k": greyBg = !greyBg; writeState(); return true
       case "+": case "=": zoom(1); return true
       case "-": zoom(-1); return true
       case "f": transformSel(Pixels.flipH); return true
@@ -413,7 +434,7 @@ Panel {
   function openPicker(mode) {
     pickerMode = mode
     picker.openWith(mode === "replace" && colors[slot] ? colors[slot] : current,
-                    mode === "replace" ? "Replace color " + ((slot + 1) % 10) : "New color")
+                    mode === "replace" ? "Replace color " + (slot + 1) : "New color")
     dialog = "picker"
   }
 
@@ -427,18 +448,9 @@ Panel {
     } else addColor(hex)
   }
 
-  // The panel hides while hyprpicker owns the screen, then comes back.
   function startPipette(target) {
     pipetteTarget = target
-    picking = true
-    root.close()
-    pipetteDelay.restart()
-  }
-
-  Timer {
-    id: pipetteDelay
-    interval: 250
-    onTriggered: pipette.running = true
+    pipette.running = true
   }
 
   Process {
@@ -447,8 +459,6 @@ Panel {
     stdout: StdioCollector {
       onStreamFinished: {
         var m = /#[0-9a-f]{6}/.exec(text)
-        root.picking = false
-        root.open()
         if (!m) root.say("Pipette canceled")
         else if (root.pipetteTarget === "picker") picker.setHex(m[0])
         else root.addColor(m[0])
@@ -557,7 +567,7 @@ Panel {
       var dec
       try { dec = Png.decode(Png.base64Decode(out), Pixels.MAX_SIDE) } catch (e) { root.say(e.message); return }
       root.resetDocument(dec)
-      if (!restoring) root.setColors(Pixels.mergePalette(Pixels.topColors(dec, 10), root.themeColors(), 10))
+      if (!restoring) root.setColors(Pixels.mergePalette(Pixels.topColors(dec, Pixels.PALETTE_SIZE), root.themeColors(), Pixels.PALETTE_SIZE))
       root.selectSlot(Math.max(0, root.slot))
       root.currentFile = name
       root.fileName = name.replace(/\.png$/, "")
@@ -613,7 +623,7 @@ Panel {
   }
 
   function writeState() {
-    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors, width: imgW, height: imgH }, null, 2) + "\n")
+    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors, width: imgW, height: imgH, greyBg: greyBg }, null, 2) + "\n")
   }
 
   function restoreState() {
@@ -621,9 +631,12 @@ Panel {
     try { s = JSON.parse(stateFile.text() || "{}") } catch (e) { s = {} }
     var w = Number(s.width), h = Number(s.height)
     if (w >= 1 && h >= 1 && w <= Pixels.MAX_SIDE && h <= Pixels.MAX_SIDE) resetDocument(Pixels.create(w, h))
-    colors = Array.isArray(s.palette) && s.palette.length === 10
-      ? s.palette.map(function(c) { return Pixels.parseHex(c) >= 0 ? String(c).toLowerCase() : "" })
+    // Older state files hold 10 slots; pad them instead of dropping the user's palette.
+    colors = Array.isArray(s.palette) && s.palette.length >= 10
+      ? s.palette.concat(new Array(Pixels.PALETTE_SIZE).fill("")).slice(0, Pixels.PALETTE_SIZE)
+          .map(function(c) { return Pixels.parseHex(c) >= 0 ? String(c).toLowerCase() : "" })
       : themeColors()
+    greyBg = s.greyBg === true
     selectSlot(0)
     if (typeof s.lastFile === "string" && Pixels.cleanName(s.lastFile) === s.lastFile) loadFile(s.lastFile, true)
   }
@@ -635,7 +648,6 @@ Panel {
 
   onOpenedChanged: {
     if (opened) { refreshFiles(); return }
-    if (picking) return
     drag = null
     if (dialog !== "") dialog = ""
     autosave()
@@ -710,23 +722,15 @@ Panel {
     font.pixelSize: Style.font.bodySmall
   }
 
-  BarIconButton {
-    id: button
-    anchors.fill: parent
-    bar: root.bar
-    text: String.fromCodePoint(0xf03d8)
-    onPressed: function(buttonCode) { root.toggle() }
-  }
+  FloatingWindow {
+    id: window
+    title: "PixelArt"
+    color: Color.background
+    implicitWidth: 900
+    implicitHeight: 760
+    visible: false
 
-  KeyboardPanel {
-    id: panel
-    anchorItem: button
-    owner: root
-    bar: root.bar
-    open: root.opened
-    focusTarget: keys
-    contentWidth: panel.fittedContentWidth(layout.implicitWidth + panel.verticalContentInset)
-    contentHeight: panel.fittedContentHeight(layout.implicitHeight)
+    onVisibleChanged: if (!visible && !root.closingFromHost && root.opened) root.requestClose()
 
     Item {
       id: keys
@@ -740,6 +744,8 @@ Panel {
 
       Column {
         id: layout
+        anchors.fill: parent
+        anchors.margins: Style.spacing.lg
         spacing: Style.spacing.lg
 
         Row {
@@ -769,6 +775,7 @@ Panel {
               onClicked: { widthField.text = String(root.imgW); heightField.text = String(root.imgH); root.dialog = "size"; widthField.forceActiveFocus() }
             }
             IconButton { glyph: 0xf02c1; selected: root.grid; tooltipText: "Grid (g)"; onClicked: root.grid = !root.grid }
+            IconButton { glyph: 0xf0139; selected: root.greyBg; tooltipText: "Grey background (k)"; onClicked: { root.greyBg = !root.greyBg; root.writeState() } }
             IconButton { glyph: 0xf06ec; tooltipText: "Zoom out (-)"; onClicked: root.zoom(-1) }
             IconButton { glyph: 0xf06ed; tooltipText: "Zoom in (+)"; onClicked: root.zoom(1) }
 
@@ -778,7 +785,7 @@ Panel {
                 required property var modelData
                 glyph: modelData.icon
                 selected: root.tool === modelData.id
-                tooltipText: modelData.label + " (" + (modelData.key === "O" ? "shift+o" : modelData.key) + ")"
+                tooltipText: modelData.label + " (" + (modelData.key !== modelData.key.toLowerCase() ? "shift+" + modelData.key.toLowerCase() : modelData.key) + ")"
                 onClicked: root.setTool(modelData.id)
               }
             }
@@ -796,6 +803,7 @@ Panel {
             imgH: root.imgH
             px: root.px
             grid: root.grid
+            greyBg: root.greyBg
             cursorX: root.cursorX
             cursorY: root.cursorY
             sel: root.sel
@@ -813,12 +821,12 @@ Panel {
           spacing: Style.spacing.lg
 
           Grid {
-            columns: 5
+            columns: 10
             spacing: Style.spacing.xs
             anchors.verticalCenter: parent.verticalCenter
 
             Repeater {
-              model: 10
+              model: Pixels.PALETTE_SIZE
               Rectangle {
                 required property int index
                 readonly property string hex: root.colors[index] || ""
@@ -989,7 +997,7 @@ Panel {
       Dialog {
         anchors.fill: parent
         opened: root.dialog === "slot"
-        title: "Color " + ((root.slot + 1) % 10)
+        title: "Color " + (root.slot + 1)
         onCanceled: root.closeDialog()
 
         Row {

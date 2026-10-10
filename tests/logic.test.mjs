@@ -14,7 +14,7 @@ const load = (file, names) => {
   new Function("exports", `${src}\nfor (const k of ${JSON.stringify(names)}) exports[k] = eval(k)`)(G)
   return G
 }
-const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv",
+const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
   "fill", "line", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
   "resize", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
@@ -37,6 +37,15 @@ t("toHex", P.toHex(BLUE) === "#0000ff")
 t("toCss keeps alpha", P.toCss(HALF).startsWith("rgba(0,0,255,0.50"))
 t("hsv round trip", P.hsvToHex(P.hexToHsv("#3a7bd5").h, P.hexToHsv("#3a7bd5").s, P.hexToHsv("#3a7bd5").v) === "#3a7bd5")
 t("hsv red", P.hsvToHex(0, 1, 1) === "#ff0000")
+{
+  const near = (a, b) => Math.abs(a - b) < 1e-9
+  const l = P.hsvToHsl(1, 1)
+  t("hsl of pure red", near(l.s, 1) && near(l.l, 0.5))
+  t("hsl of white/black", near(P.hsvToHsl(0, 1).l, 1) && P.hsvToHsl(0, 0).s === 0)
+  const v = P.hslToHsv(0.4, 0.3), back = P.hsvToHsl(v.s, v.v)
+  t("hsl round trip", near(back.s, 0.4) && near(back.l, 0.3))
+  t("hsl black", P.hslToHsv(0.5, 0).v === 0 && P.hslToHsv(0.5, 0).s === 0)
+}
 
 group("fill")
 {
@@ -105,7 +114,7 @@ group("palette")
   const theme = 'accent = "#b59790"\nforeground = "#FAFCFB"\nbackground = "#0c0b0c"\nred = "#c38b7b"\n'
     + 'green = "#87a9b0"\nyellow = "#6B5E73"\nblue = "#b59790"\nmagenta = "#c4d8e2"\ncyan = "#a5a0b6"\nmuted = "#584e51"\n'
   const tp = P.themePalette(theme, ["#111111", "#222222"])
-  t("theme palette has 10 distinct", tp.length === 10 && new Set(tp).size === 10 && tp[0] === "#fafcfb")
+  t("theme palette fills PALETTE_SIZE distinct", tp.length === P.PALETTE_SIZE && new Set(tp.filter(Boolean)).size === 11 && tp[0] === "#fafcfb")
   t("theme palette fallback when empty", P.themePalette("", ["#111111"])[0] === "#111111")
 }
 

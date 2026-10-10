@@ -4,10 +4,10 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 
 ## Platform
 - Omarchy 4 shell plugin (`manifest.json`, installed with `omarchy plugin add`)
-- Bar widget in the Omarchy top bar, clicking it opens the editor panel
+- `panel` plugin whose editor is a normal Hyprland window (tiled like any app), not a bar popup
 - Plugin id: `motzemoere.pixelart`
-- Keybind `SUPER + ALT + P` toggles the panel: `omarchy-shell shell toggle motzemoere.pixelart`
-- The panel must receive keyboard input (required for keyboard driven operations)
+- Keybind `SUPER + ALT + P` toggles the window: `omarchy-shell shell toggle motzemoere.pixelart`
+- The window must receive keyboard input (required for keyboard driven operations)
 - Tech stack: QML + JavaScript inside `omarchy-shell` (Quickshell), like omarchy-snake; no external dependencies besides `wl-clipboard` and `hyprpicker`
 - Theme colors from the shell's `qs.Commons` singletons
 - Canvas: pixel data as a JS array, drawn via QML `Canvas` (`putImageData`), PNG written with `Canvas.save()`
@@ -39,16 +39,17 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Undo / redo, for every tool
 
 #### Bottom bar
-- 10 preselected colors (2 rows of 5)
-- Add color button (opens a color picker to add a new color)
+- 20 preselected colors (2 rows of 10)
+- Add color button (opens a color picker to add a new color); the picker has HSV, RGB and HSL modes
 - Right click on a color: replace (color picker) or delete
-- Screen pipette button in the color picker: pick a color from anywhere on screen (e.g. a reference image in another window) via `hyprpicker`; the panel hides while picking, esc cancels
+- Screen pipette button in the color picker: pick a color from anywhere on screen (e.g. a reference image in another window) via `hyprpicker`; esc cancels
 - Save, load, new and export button
 - Filename field, editable
 - Status: cursor x,y, current tool, current color
 
 ## Canvas
-- Transparent pixels are shown as a checkerboard
+- Transparent pixels are shown as a checkerboard, or optionally a light grey background (for dark artwork)
+- The mouse pointer is hidden over the canvas; the one-pixel cell outline is the cursor
 - Resizing with content: pad (grow) or crop (shrink) evenly on all sides; if the difference is uneven, the extra pixel goes to the right and top
 
 ## Files
@@ -62,13 +63,13 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 
 ## Palette
 - New image: the 10 colors come from the current Omarchy theme
-- Loading an image: the palette is taken from the image's colors (the 10 most used); if it has fewer, the remaining slots are filled with theme colors
-- Add color when all 10 slots are full replaces the selected slot
+- Loading an image: the palette is taken from the image's colors (the 20 most used); if it has fewer, the remaining slots are filled with theme colors
+- Add color when all 20 slots are full replaces the selected slot
 
 ## Behavior
 - Fast and responsive
 - Fully keyboard driven operations
-- When canvas size is changed also the window size of the plugin changes with it (small size only a small panel, larger size bigger panel)
+- The canvas fills the window; changing canvas size refits the zoom to the window
 - Zoom does not change the window size, the canvas scrolls inside the window
 - When opened last edited image is automatically loaded
 - When closed image is automatically saved; `n` new also saves the current image first
@@ -86,12 +87,13 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - ctrl+z undo
 - ctrl+y / ctrl+shift+z redo
 - g grid toggle
+- k grey background / checkerboard toggle
 - +/- zoom
 
 #### Cursor
 - arrows move the cursor
-- return draw a pixel / set start and end point of a shape or selection
-- delete / backspace remove a pixel
+- space draw a pixel / set start and end point of a shape or selection (ctrl+space keeps the ratio)
+- c / delete / backspace remove a pixel (or the selected pixels)
 
 #### Tools
 - p pixel drawer
@@ -100,7 +102,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - v select
 - l line
 - r rectangle
-- c circle
+- shift+c circle
 - t triangle
 - h hexagon
 - shift+o octagon
@@ -114,7 +116,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - delete remove selected pixels
 
 #### Colors
-- numbers 1-0 color select
+- numbers 1-0 select colors 1-10, shift+1-0 colors 11-20
 - a new color (color picker)
 - shift+i pick a new color from the screen (pipette)
 

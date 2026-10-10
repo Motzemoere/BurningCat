@@ -7,6 +7,7 @@
 var MAX_SIDE = 256
 var SIZES = [16, 32, 64, 128]
 var HISTORY_LIMIT = 100
+var PALETTE_SIZE = 20
 
 function create(w, h) { return { w: w, h: h, data: new Uint32Array(w * h) } }
 
@@ -64,6 +65,17 @@ function hexToHsv(hex) {
     else h = 60 * ((r - g) / d + 4)
   }
   return { h: (h + 360) % 360, s: max === 0 ? 0 : d / max, v: max }
+}
+
+// HSV <-> HSL keep the shared hue; s, v, l are 0..1. Returns {s, l} / {s, v}.
+function hsvToHsl(s, v) {
+  var l = v * (1 - s / 2), m = Math.min(l, 1 - l)
+  return { s: m === 0 ? 0 : (v - l) / m, l: l }
+}
+
+function hslToHsv(s, l) {
+  var v = l + s * Math.min(l, 1 - l)
+  return { s: v === 0 ? 0 : 2 * (1 - l / v), v: v }
 }
 
 // ------------------------------------------------------------------ tools
@@ -285,7 +297,7 @@ var THEME_KEYS = [
   ["bright_yellow", "color11"], ["bright_blue", "color12"], ["bright_magenta", "color13"], ["bright_cyan", "color14"],
 ]
 
-// Ten distinct colors from an Omarchy colors.toml, topped up from fallback.
+// PALETTE_SIZE distinct colors from an Omarchy colors.toml, topped up from fallback.
 function themePalette(toml, fallback) {
   var vals = {}
   String(toml || "").split("\n").forEach(function(line) {
@@ -296,7 +308,7 @@ function themePalette(toml, fallback) {
     for (var i = 0; i < keys.length; i++) if (vals[keys[i]]) return vals[keys[i]]
     return ""
   })
-  return mergePalette(picked, fallback || [], 10)
+  return mergePalette(picked, fallback || [], PALETTE_SIZE)
 }
 
 // ------------------------------------------------------------------ files

@@ -1,7 +1,7 @@
 # PixelArt
 
-A small pixel art editor as an Omarchy shell plugin: a bar widget that opens
-an editor panel, styled live by the current Omarchy theme. The feature spec,
+A small pixel art editor as an Omarchy shell plugin: a keybind opens it as a
+normal tiled Hyprland window, styled live by the current Omarchy theme. The feature spec,
 including the full keybinding list, is [features.md](features.md).
 
 ## Install
@@ -26,9 +26,11 @@ o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pix
 
 - `shift+arrows` move the selection
 - right click with the color pot fills with transparency
+- `k` toggles a light grey background instead of the checkerboard
 - `ctrl+wheel` zooms, `wheel` / `shift+wheel` scroll
-- color picker: arrows change saturation/value, `shift+arrows` hue, `tab` the
-  hex field, `p` or `shift+i` the screen pipette
+- color picker: `m` cycles HSV / RGB / HSL. HSV: arrows change saturation/value,
+  `shift+arrows` hue. RGB / HSL: up/down pick a channel, left/right change it
+  (`shift` for steps of 10). `tab` the hex field, `p` or `shift+i` the screen pipette
 - export dialog: `4`, `8`, `1` (16x) or arrows + `return`
 
 ## Development

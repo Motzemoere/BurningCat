@@ -16,6 +16,7 @@ Item {
   property int imgH: 1
   property int px: 1
   property bool grid: false
+  property bool greyBg: false
   property int cursorX: 0
   property int cursorY: 0
   property var sel: null        // {x, y, w, h, buf}; buf set while the selection floats
@@ -105,13 +106,16 @@ Item {
         property color light: Util.alpha(view.foreground, 0.16)
         property color dark: Util.alpha(view.foreground, 0.06)
         onLightChanged: requestPaint()
+        readonly property bool grey: view.greyBg
+        onGreyChanged: requestPaint()
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
         onPaint: {
           var ctx = getContext("2d")
           ctx.clearRect(0, 0, width, height)
-          ctx.fillStyle = dark
+          ctx.fillStyle = grey ? "#d0d0d0" : dark
           ctx.fillRect(0, 0, width, height)
+          if (grey) return
           ctx.fillStyle = light
           for (var y = 0; y < height; y++)
             for (var x = y & 1; x < width; x += 2) ctx.fillRect(x, y, 1, 1)
@@ -207,7 +211,7 @@ Item {
       Rectangle {
         x: view.cursorX * view.px
         y: view.cursorY * view.px
-        width: Math.max(view.px, 3)
+        width: view.px
         height: width
         color: "transparent"
         border.width: 1
@@ -219,7 +223,8 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: true
         preventStealing: true
-        cursorShape: Qt.CrossCursor
+        // The cell outline is the cursor; a pointer would hide the pixels around it.
+        cursorShape: Qt.BlankCursor
 
         function cellX(m) { return Math.floor(m.x / view.px) }
         function cellY(m) { return Math.floor(m.y / view.px) }
