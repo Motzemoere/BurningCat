@@ -10,6 +10,8 @@ var HISTORY_LIMIT = 100
 var PALETTE_SIZE = 20
 // Extra slots 21/22 after the palette; new and loaded images leave them alone.
 var EXTRA_COLORS = ["#000000", "#ffffff"]
+var GREY_BG = "#d0d0d0"
+var BACKGROUNDS = ["", "#000000", "#ffffff", GREY_BG]  // behind transparent pixels on screen; "" is the checkerboard
 
 function create(w, h) { return { w: w, h: h, data: new Uint32Array(w * h) } }
 
@@ -31,6 +33,19 @@ function set(img, x, y, c) {
 function isEmpty(img) {
   for (var i = 0; i < img.data.length; i++) if (img.data[i] !== 0) return false
   return true
+}
+
+// Copy of img composited over the opaque color bg (0xAARRGGBB).
+function flatten(img, bg) {
+  var out = clone(img)
+  for (var i = 0; i < out.data.length; i++) {
+    var c = out.data[i], a = c >>> 24, mix = 0xff000000
+    if (a === 255) continue
+    for (var s = 0; s <= 16; s += 8)
+      mix |= Math.round((((c >>> s) & 255) * a + ((bg >>> s) & 255) * (255 - a)) / 255) << s
+    out.data[i] = mix >>> 0
+  }
+  return out
 }
 
 // ------------------------------------------------------------------ colors
@@ -113,6 +128,21 @@ function line(x0, y0, x1, y1) {
     if (e2 >= dy) { err += dy; x0 += sx }
     if (e2 <= dx) { err += dx; y0 += sy }
   }
+}
+
+var PEN_SIZES = [1, 2, 4, 8]
+
+// Each point grown to an n x n block with the point as its top-left corner, duplicates dropped.
+function stamp(points, n) {
+  if (n <= 1) return points
+  var out = [], seen = {}
+  for (var i = 0; i < points.length; i++)
+    for (var dy = 0; dy < n; dy++)
+      for (var dx = 0; dx < n; dx++) {
+        var x = points[i].x + dx, y = points[i].y + dy, k = x + "," + y
+        if (!seen[k]) { seen[k] = true; out.push({ x: x, y: y }) }
+      }
+  return out
 }
 
 // Ellipse inscribed in the box (x0,y0)-(x1,y1), any width/height parity.
@@ -352,7 +382,7 @@ var ACTIONS = [
   ["rotateCw", "Rotate clockwise", "]"], ["rotateCcw", "Rotate counter-clockwise", "["],
   ["slot21", "Color slot 21", "z"], ["slot22", "Color slot 22", "x"],
   ["addColor", "Add color", "a"], ["pipette", "Screen pipette", "I"],
-  ["grid", "Grid", "g"], ["background", "Grey background", "k"], ["zoomIn", "Zoom in", "+"], ["zoomOut", "Zoom out", "-"],
+  ["grid", "Grid", "g"], ["background", "Background", "k"], ["zoomIn", "Zoom in", "+"], ["zoomOut", "Zoom out", "-"],
   ["new", "New", "n"], ["save", "Save", "s"], ["load", "Load", "o"], ["export", "Export", "e"], ["upscale", "Upscale", "u"],
   ["keys", "Keybindings", "K"], ["quit", "Quit", "q"],
 ]

@@ -15,7 +15,7 @@ const load = (file, names) => {
   return G
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
-  "fill", "line", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
+  "fill", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
   "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History",
   "ACTIONS", "bindable", "defaultBindings", "rebind", "bindings", "overridesOf", "actionFor", "keyLabel"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
@@ -207,6 +207,22 @@ group("png from other encoders")
   const g1 = png(9, 1, 1, 0, [0, 0b10000000, 0b10000000])
   const g = Z.decode(g1).data
   t("1-bit gray", g[0] === 0xffffffff && g[1] === 0xff000000 && g[8] === 0xffffffff)
+}
+
+group("flatten")
+{
+  const f = P.flatten(img(3, 1, [0, RED, HALF]), 0xffffffff).data
+  t("transparent becomes background", f[0] === 0xffffffff)
+  t("opaque unchanged", f[1] === RED)
+  t("half alpha blended", f[2] === 0xff7f7fff)
+}
+
+group("stamp")
+{
+  t("size 1 is unchanged", P.stamp([{ x: 3, y: 4 }], 1).length === 1)
+  const s = P.stamp([{ x: 3, y: 4 }], 2)
+  t("2x2 anchored top-left", s.length === 4 && s.some(p => p.x === 3 && p.y === 4) && s.some(p => p.x === 4 && p.y === 5))
+  t("overlapping blocks deduplicated", P.stamp(P.line(0, 0, 1, 0), 2).length === 6)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -48,8 +48,10 @@ Item {
   property int slot: 0
   property string current: "#ffffff"
   property string tool: "pixel"
+  property int penSize: 1        // pen and eraser block side, one of Pixels.PEN_SIZES
   property bool grid: false
-  property bool greyBg: false    // light grey instead of the checkerboard behind transparent pixels
+  property string bg: ""         // one of Pixels.BACKGROUNDS
+  property bool bgMenu: false    // background swatches shown in place of the tool options
   property int px: fitPx
   property int cursorX: 0
   property int cursorY: 0
@@ -86,6 +88,7 @@ Item {
     { id: "octagon", icon: 0xf03c4, label: "Octagon" },
   ]
   readonly property var shapeTools: ["line", "rectangle", "circle", "triangle", "hexagon", "octagon"]
+  readonly property real slotSize: Style.space(22)  // color slots and tool option buttons
   readonly property var zoomSteps: [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]
 
   function keyOf(id) { return Pixels.keyLabel(keymap[id]) }
@@ -165,7 +168,14 @@ Item {
   function setTool(id) {
     commitSelection()
     cancelShape()
+    bgMenu = false
     tool = id
+  }
+
+  function setBg(c) {
+    bg = c
+    bgMenu = false
+    writeState()
   }
 
   function isShape(t) { return shapeTools.indexOf(t) >= 0 }
@@ -318,7 +328,7 @@ Item {
   // ------------------------------------------------------------ input
   function activate(keepRatio) {
     var p = { x: cursorX, y: cursorY }
-    if (tool === "pixel") { commitSelection(); pushHistory(); drawPoints([p], currentInt()) }
+    if (tool === "pixel") { commitSelection(); pushHistory(); drawPoints(Pixels.stamp([p], penSize), currentInt()) }
     else if (tool === "eyedropper") pick(p.x, p.y)
     else if (tool === "fill") fillAt(p.x, p.y, currentInt())
     else if (!startPt) {
@@ -344,7 +354,7 @@ Item {
     var erase = button === Qt.RightButton
     if (mods & Qt.AltModifier) { pick(x, y); return }
     drag = { last: { x: x, y: y }, move: false }
-    if (tool === "pixel") { commitSelection(); pushHistory(); drawPoints([{ x: x, y: y }], erase ? 0 : currentInt()); drag.erase = erase }
+    if (tool === "pixel") { commitSelection(); pushHistory(); drawPoints(Pixels.stamp([{ x: x, y: y }], penSize), erase ? 0 : currentInt()); drag.erase = erase }
     else if (tool === "eyedropper") pick(x, y)
     else if (tool === "fill") fillAt(x, y, erase ? 0 : currentInt())
     else if (tool === "select" && inSel(x, y)) { lift(); drag.move = true }
@@ -362,7 +372,7 @@ Item {
       return
     }
     var p = { x: x, y: y }
-    if (tool === "pixel") drawPoints(Pixels.line(drag.last.x, drag.last.y, x, y), drag.erase ? 0 : currentInt())
+    if (tool === "pixel") drawPoints(Pixels.stamp(Pixels.line(drag.last.x, drag.last.y, x, y), penSize), drag.erase ? 0 : currentInt())
     else if (drag.move) moveSel(x - drag.last.x, y - drag.last.y)
     else if (startPt) updatePreview(startPt, { x: Math.max(0, Math.min(imgW - 1, x)), y: Math.max(0, Math.min(imgH - 1, y)) }, mods & Qt.ControlModifier)
     drag.last = p
@@ -402,12 +412,13 @@ Item {
     var dy = k === Qt.Key_Up ? -1 : k === Qt.Key_Down ? 1 : 0
     if (dx || dy) {
       if (shift && sel) moveSel(dx, dy)
+      else if (ctrl) { view.scrollBy(dx, dy); moveCursor(dx, dy) }  // the image slides under a still cursor
       else moveCursor(dx, dy)
       return true
     }
     if (k === Qt.Key_Space) { activate(ctrl); return true }
     if (k === Qt.Key_Delete || k === Qt.Key_Backspace) { erase(); return true }
-    if (k === Qt.Key_Escape) { cancel(); return true }
+    if (k === Qt.Key_Escape) { if (bgMenu) bgMenu = false; else cancel(); return true }
     if (ctrl) return false
 
     var t = event.text
@@ -417,6 +428,8 @@ Item {
     if (t >= "0" && t <= "9" && t.length === 1) { selectSlot((Number(t) + 9) % 10); return true }
     var action = Pixels.actionFor(keymap, t)
     if (action) { runAction(action); return true }
+    // shift+<pen key> cycles the size backwards when that shifted key is unbound.
+    if (tool === "pixel" && t !== t.toLowerCase() && Pixels.actionFor(keymap, t.toLowerCase()) === "pixel") { cyclePenSize(-1); return true }
     if (t === "=" && keymap.zoomIn === "+") { zoom(1); return true }  // unshifted + on US layouts
     return false
   }
@@ -424,10 +437,16 @@ Item {
   function erase() {
     if (sel) deleteSel()
     else if (tool === "fill") fillAt(cursorX, cursorY, 0)
-    else { commitSelection(); pushHistory(); drawPoints([{ x: cursorX, y: cursorY }], 0) }
+    else { commitSelection(); pushHistory(); drawPoints(Pixels.stamp([{ x: cursorX, y: cursorY }], penSize), 0) }
+  }
+
+  function cyclePenSize(d) {
+    var n = Pixels.PEN_SIZES.length
+    penSize = Pixels.PEN_SIZES[(Pixels.PEN_SIZES.indexOf(penSize) + d + n) % n]
   }
 
   function runAction(id) {
+    if (id === "pixel" && tool === "pixel") { cyclePenSize(1); return }
     for (var i = 0; i < tools.length; i++) if (tools[i].id === id) { setTool(id); return }
     switch (id) {
       case "erase": erase(); break
@@ -440,7 +459,10 @@ Item {
       case "addColor": openPicker("add"); break
       case "pipette": startPipette("add"); break
       case "grid": grid = !grid; break
-      case "background": greyBg = !greyBg; writeState(); break
+      case "background":
+        if (bgMenu) { var i = Pixels.BACKGROUNDS.indexOf(bg); bg = Pixels.BACKGROUNDS[(i + 1) % Pixels.BACKGROUNDS.length]; writeState() }
+        else bgMenu = true
+        break
       case "zoomIn": zoom(1); break
       case "zoomOut": zoom(-1); break
       case "new": newImage(); break
@@ -639,18 +661,24 @@ Item {
     closeDialog()
     commitSelection()
     var base = Pixels.cleanName(fileName) || currentFile || Pixels.timestampName(new Date())
-    var name = Pixels.exportName(base, scale), bytes = Png.encode(img, scale)
+    var bg = exportBgs[exportBg].color
+    var name = Pixels.exportName(base, scale), bytes = Png.encode(bg ? Pixels.flatten(img, Pixels.parseHex(bg)) : img, scale)
     var write = function() { root.writeBytes(name, bytes, function(ok) { if (ok) root.say("Exported " + name) }) }
     exists(name, function(yes) { if (yes) root.ask("Overwrite " + name + "?", write); else write() })
   }
 
   property int exportIndex: 1
   readonly property var exportScales: [4, 8, 16]
+  property int exportBg: 0
+  readonly property var exportBgs: [{ label: "Transparent", color: "" }, { label: "Grey", color: Pixels.GREY_BG },
+                                    { label: "White", color: "#ffffff" }, { label: "Current color", color: current }]
 
   function exportKey(event) {
     if (event.key === Qt.Key_Escape) closeDialog()
     else if (event.key === Qt.Key_Left || event.text === "h") exportIndex = Math.max(0, exportIndex - 1)
     else if (event.key === Qt.Key_Right || event.text === "l") exportIndex = Math.min(2, exportIndex + 1)
+    else if (event.key === Qt.Key_Up || event.text === "k") exportBg = (exportBg + exportBgs.length - 1) % exportBgs.length
+    else if (event.key === Qt.Key_Down || event.text === "j") exportBg = (exportBg + 1) % exportBgs.length
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) exportImage(exportScales[exportIndex])
     else if (event.text === "4") exportImage(4)
     else if (event.text === "8") exportImage(8)
@@ -682,7 +710,7 @@ Item {
   }
 
   function writeState() {
-    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors.slice(0, Pixels.PALETTE_SIZE), extras: colors.slice(Pixels.PALETTE_SIZE), width: imgW, height: imgH, greyBg: greyBg, keys: Pixels.overridesOf(keymap) }, null, 2) + "\n")
+    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors.slice(0, Pixels.PALETTE_SIZE), extras: colors.slice(Pixels.PALETTE_SIZE), width: imgW, height: imgH, background: bg, keys: Pixels.overridesOf(keymap) }, null, 2) + "\n")
   }
 
   function restoreState() {
@@ -697,7 +725,7 @@ Item {
       : themeColors()
     var extras = Array.isArray(s.extras) && s.extras.length === Pixels.EXTRA_COLORS.length ? s.extras.map(valid) : Pixels.EXTRA_COLORS
     colors = palette.concat(extras)
-    greyBg = s.greyBg === true
+    bg = Pixels.BACKGROUNDS.indexOf(s.background) >= 0 ? s.background : s.greyBg === true ? Pixels.GREY_BG : ""  // greyBg: older state files
     keymap = Pixels.bindings(s.keys)
     selectSlot(0)
     if (typeof s.lastFile === "string" && Pixels.cleanName(s.lastFile) === s.lastFile) loadFile(s.lastFile, true)
@@ -814,52 +842,118 @@ Item {
           id: topRow
           spacing: Style.spacing.lg
 
-          Grid {
+          Column {
             id: sidebar
-            columns: 2
-            spacing: Style.spacing.xs
+            spacing: Style.spacing.lg
 
-            Repeater {
-              model: [16, 32, 64, 128]
+            Grid {
+              columns: 2
+              spacing: Style.spacing.xs
+
+              Repeater {
+                model: [16, 32, 64, 128]
+                IconButton {
+                  required property int modelData
+                  text: String(modelData)
+                  fontSize: Style.font.caption
+                  selected: root.imgW === modelData && root.imgH === modelData
+                  tooltipText: modelData + "x" + modelData
+                  onClicked: root.resizeCanvas(modelData, modelData)
+                }
+              }
               IconButton {
-                required property int modelData
-                text: String(modelData)
-                fontSize: Style.font.caption
-                selected: root.imgW === modelData && root.imgH === modelData
-                tooltipText: modelData + "x" + modelData
-                onClicked: root.resizeCanvas(modelData, modelData)
+                text: "…"
+                selected: !(root.imgW === root.imgH && [16, 32, 64, 128].indexOf(root.imgW) >= 0)
+                tooltipText: "Custom size (max " + Pixels.MAX_SIDE + "x" + Pixels.MAX_SIDE + ")"
+                onClicked: { widthField.text = String(root.imgW); heightField.text = String(root.imgH); root.dialog = "size"; widthField.forceActiveFocus() }
+              }
+              IconButton {
+                text: "⤢"
+                tooltipText: "Upscale (" + root.keyOf("upscale") + ")"
+                onClicked: root.dialog = "upscale"
+              }
+              IconButton { glyph: 0xf02c1; selected: root.grid; tooltipText: "Grid (" + root.keyOf("grid") + ")"; onClicked: root.grid = !root.grid }
+              IconButton { glyph: 0xf0139; selected: root.bgMenu; tooltipText: "Background (" + root.keyOf("background") + ")"; onClicked: root.runAction("background") }
+              IconButton { glyph: 0xf06ec; tooltipText: "Zoom out (" + root.keyOf("zoomOut") + ")"; onClicked: root.zoom(-1) }
+              IconButton { glyph: 0xf06ed; tooltipText: "Zoom in (" + root.keyOf("zoomIn") + ")"; onClicked: root.zoom(1) }
+
+              Repeater {
+                model: root.tools
+                IconButton {
+                  required property var modelData
+                  glyph: modelData.icon
+                  selected: root.tool === modelData.id
+                  tooltipText: modelData.label + " (" + root.keyOf(modelData.id) + ")"
+                  onClicked: root.setTool(modelData.id)
+                }
+              }
+
+              IconButton { glyph: 0xf054c; tooltipText: "Undo (ctrl+z)"; onClicked: root.undo() }
+              IconButton { glyph: 0xf044e; tooltipText: "Redo (ctrl+y)"; onClicked: root.redo() }
+              IconButton { glyph: 0xf030c; tooltipText: "Keybindings (" + root.keyOf("keys") + ")"; onClicked: root.dialog = "keys" }
+            }
+
+            // Options of the active tool.
+            Grid {
+              anchors.horizontalCenter: parent.horizontalCenter
+              columns: 2
+              spacing: Style.spacing.xs
+
+              Repeater {
+                model: root.tool === "pixel" && !root.bgMenu ? Pixels.PEN_SIZES : []
+                IconButton {
+                  required property int modelData
+                  width: root.slotSize
+                  height: width
+                  text: String(modelData)
+                  fontSize: Style.font.caption
+                  selected: root.penSize === modelData
+                  tooltipText: "Pen " + modelData + "x" + modelData + " (" + root.keyOf("pixel") + " cycles)"
+                  onClicked: root.penSize = modelData
+                }
+              }
+              Repeater {
+                model: root.tool === "select" && !root.bgMenu ? [["flipH", "↔", "Flip horizontal"], ["flipV", "↕", "Flip vertical"],
+                                                 ["rotateCcw", "⟲", "Rotate counter-clockwise"], ["rotateCw", "⟳", "Rotate clockwise"]] : []
+                IconButton {
+                  required property var modelData
+                  width: root.slotSize
+                  height: width
+                  text: modelData[1]
+                  fontSize: Style.font.caption
+                  tooltipText: modelData[2] + " (" + root.keyOf(modelData[0]) + ")"
+                  onClicked: root.runAction(modelData[0])
+                }
+              }
+              Repeater {
+                model: root.bgMenu ? Pixels.BACKGROUNDS : []
+                Rectangle {
+                  required property string modelData
+                  width: root.slotSize
+                  height: width
+                  color: modelData || "transparent"
+                  border.width: root.bg === modelData ? 2 : 1
+                  border.color: root.bg === modelData ? Color.accent : Util.alpha(Color.popups.text, 0.3)
+
+                  Grid {
+                    anchors.fill: parent
+                    anchors.margins: parent.border.width  // keep the selection border visible
+                    visible: !parent.modelData
+                    columns: 4
+                    Repeater {
+                      model: 16
+                      Rectangle {
+                        required property int index
+                        width: parent.width / 4
+                        height: width
+                        color: Util.alpha(Color.foreground, (index + Math.floor(index / 4)) % 2 ? 0.06 : 0.16)
+                      }
+                    }
+                  }
+                  MouseArea { anchors.fill: parent; onClicked: root.setBg(parent.modelData) }
+                }
               }
             }
-            IconButton {
-              text: "…"
-              selected: !(root.imgW === root.imgH && [16, 32, 64, 128].indexOf(root.imgW) >= 0)
-              tooltipText: "Custom size (max " + Pixels.MAX_SIDE + "x" + Pixels.MAX_SIDE + ")"
-              onClicked: { widthField.text = String(root.imgW); heightField.text = String(root.imgH); root.dialog = "size"; widthField.forceActiveFocus() }
-            }
-            IconButton {
-              text: "⤢"
-              tooltipText: "Upscale (" + root.keyOf("upscale") + ")"
-              onClicked: root.dialog = "upscale"
-            }
-            IconButton { glyph: 0xf02c1; selected: root.grid; tooltipText: "Grid (" + root.keyOf("grid") + ")"; onClicked: root.grid = !root.grid }
-            IconButton { glyph: 0xf0139; selected: root.greyBg; tooltipText: "Grey background (" + root.keyOf("background") + ")"; onClicked: { root.greyBg = !root.greyBg; root.writeState() } }
-            IconButton { glyph: 0xf06ec; tooltipText: "Zoom out (" + root.keyOf("zoomOut") + ")"; onClicked: root.zoom(-1) }
-            IconButton { glyph: 0xf06ed; tooltipText: "Zoom in (" + root.keyOf("zoomIn") + ")"; onClicked: root.zoom(1) }
-
-            Repeater {
-              model: root.tools
-              IconButton {
-                required property var modelData
-                glyph: modelData.icon
-                selected: root.tool === modelData.id
-                tooltipText: modelData.label + " (" + root.keyOf(modelData.id) + ")"
-                onClicked: root.setTool(modelData.id)
-              }
-            }
-
-            IconButton { glyph: 0xf054c; tooltipText: "Undo (ctrl+z)"; onClicked: root.undo() }
-            IconButton { glyph: 0xf044e; tooltipText: "Redo (ctrl+y)"; onClicked: root.redo() }
-            IconButton { glyph: 0xf030c; tooltipText: "Keybindings (" + root.keyOf("keys") + ")"; onClicked: root.dialog = "keys" }
           }
 
           PixelView {
@@ -871,9 +965,10 @@ Item {
             imgH: root.imgH
             px: root.px
             grid: root.grid
-            greyBg: root.greyBg
+            bg: root.bg
             cursorX: root.cursorX
             cursorY: root.cursorY
+            cursorSize: root.tool === "pixel" ? root.penSize : 1
             sel: root.sel
             preview: root.preview
             previewColor: root.current
@@ -893,7 +988,7 @@ Item {
             Rectangle {
               required property int modelData   // slot index
               readonly property string hex: root.colors[modelData] || ""
-              width: Style.space(22)
+              width: root.slotSize
               height: width
               color: hex || "transparent"
               border.width: modelData === root.slot ? 2 : 1
@@ -975,7 +1070,7 @@ Item {
             spacing: Style.spacing.md
 
             Label { text: root.cursorX + "," + root.cursorY }
-            Label { text: root.toolLabel(root.tool); opacity: 0.7 }
+            Label { text: root.toolLabel(root.tool) + (root.tool === "pixel" ? " " + root.penSize + "x" + root.penSize : ""); opacity: 0.7 }
             Rectangle {
               anchors.verticalCenter: parent.verticalCenter
               width: Style.font.bodySmall
@@ -1041,7 +1136,21 @@ Item {
             }
           }
         }
-        Label { text: (root.imgW * root.exportScales[root.exportIndex]) + "x" + (root.imgH * root.exportScales[root.exportIndex]) + " px"; opacity: 0.6 }
+        Row {
+          spacing: Style.spacing.lg
+          Repeater {
+            model: root.exportBgs
+            Button {
+              required property int index
+              required property var modelData
+              text: modelData.label
+              bordered: true
+              selected: root.exportBg === index
+              onClicked: root.exportBg = index
+            }
+          }
+        }
+        Label { text: (root.imgW * root.exportScales[root.exportIndex]) + "x" + (root.imgH * root.exportScales[root.exportIndex]) + " px · ←→ scale, ↑↓ background"; opacity: 0.6 }
       }
 
       Dialog {

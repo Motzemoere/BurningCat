@@ -32,7 +32,8 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Upscale 2x, 3x or 4x: every pixel becomes a 2x2, 3x3 or 4x4 block (nearest-neighbour), for finer detail work; refused if the result exceeds 512x512
 - Zoom zoom in and out of the canvas, especially important for bigger canvas
 - Grid toggle, shows pixel borders
-- Pixel drawer (left click draws a pixel right click removes a pixel, removed pixels are transparent)
+- Pixel drawer (left click draws a pixel right click removes a pixel, removed pixels are transparent); pen size 1x1, 2x2, 4x4 or 8x8, the cursor is the top-left pixel of the block; the eraser uses the same size
+- Options of the active tool (pen sizes, selection flip/rotate) appear below the sidebar
 - Eyedropper, picks the color of a canvas pixel as current color (also alt+click with any tool)
 - Pixel selector, draw a box, all pixels with the box are selected, operations like move, copy, cut, paste, flip, rotate (90° steps only)
 - Color pot, color all connected colors which have the same color (similar to paints color pot), only 4-connected (no diagonals)
@@ -49,7 +50,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Status: cursor x,y, current tool, current color
 
 ## Canvas
-- Transparent pixels are shown as a checkerboard, or optionally a light grey background (for dark artwork)
+- Transparent pixels are shown as a checkerboard, or a black, white or light grey background, picked from the Background swatches (screen only, not saved)
 - The mouse pointer is hidden over the canvas; the one-pixel cell outline is the cursor
 - Resizing with content: pad (grow) or crop (shrink) evenly on all sides; if the difference is uneven, the extra pixel goes to the right and top
 
@@ -59,7 +60,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Untitled images are named by timestamp (e.g. `2026-10-10_14-30-05.png`)
 - Saving under an existing filename asks before overwriting
 - Load: PNGs larger than 512x512 are refused with a message
-- Export: PNG scaled up 4x, 8x or 16x with nearest-neighbour (no blur)
+- Export: PNG scaled up 4x, 8x or 16x with nearest-neighbour (no blur); background transparent, grey, white or the current color (save always keeps transparency)
 - Copy/paste uses the system clipboard (`wl-copy` / `wl-paste`), so selections can be pasted into other apps and images pasted in
 
 ## Palette
@@ -93,16 +94,16 @@ The single-key bindings below are defaults: `shift+k` opens a keybinding menu wh
 - ctrl+z undo
 - ctrl+y / ctrl+shift+z redo
 - g grid toggle
-- k grey background / checkerboard toggle
+- k background swatches (checkerboard, black, white, grey); k again cycles, esc closes
 - +/- zoom
 
 #### Cursor
-- arrows move the cursor
+- arrows move the cursor, ctrl+arrows move it and scroll the view by one pixel, so the image slides under the cursor when zoomed in
 - space draw a pixel / set start and end point of a shape or selection (ctrl+space keeps the ratio)
 - c / delete / backspace remove a pixel (or the selected pixels; with the color pot, all connected pixels of that color)
 
 #### Tools
-- p pixel drawer
+- p pixel drawer; p again cycles the pen size up, shift+p down
 - i eyedropper
 - b color pot
 - v select
@@ -128,7 +129,7 @@ The single-key bindings below are defaults: `shift+k` opens a keybinding menu wh
 - shift+i pick a new color from the screen (pipette)
 
 ## Non-goals
-Layers, animation frames, brush sizes, symmetry mode, anti-aliasing, filled shapes.
+Layers, animation frames, symmetry mode, anti-aliasing, filled shapes.
 
 ## References:
 paint: (main source regarding tools)

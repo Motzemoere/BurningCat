@@ -26,7 +26,7 @@ o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pix
 
 - `shift+arrows` move the selection
 - right click with the color pot fills with transparency
-- `k` toggles a light grey background instead of the checkerboard
+- `k` shows the background swatches: checkerboard, black, white or grey
 - `ctrl+wheel` zooms, `wheel` / `shift+wheel` scroll
 - color picker: `m` cycles HSV / RGB / HSL. HSV: arrows change saturation/value,
   `shift+arrows` hue. RGB / HSL: up/down pick a channel, left/right change it
