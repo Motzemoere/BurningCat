@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "motzemoere.pixelart",
+  "name": "PixelArt",
+  "version": "0.1.0",
+  "author": "motzemoere",
+  "description": "Pixel art editor in a bar panel, styled by the Omarchy theme",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "PixelArt.qml"
+  },
+  "barWidget": {
+    "displayName": "PixelArt",
+    "description": "Pixel art editor panel",
+    "category": "Plugin",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
