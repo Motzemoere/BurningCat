@@ -36,7 +36,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Options of the active tool (pen sizes, selection flip/rotate) appear below the sidebar
 - Eyedropper, picks the color of a canvas pixel as current color (also alt+click with any tool)
 - Pixel selector, draw a box, all pixels with the box are selected, operations like move, copy, cut, paste, flip, rotate (90° steps only)
-- Color pot, color all connected colors which have the same color (similar to paints color pot), only 4-connected (no diagonals)
+- Color pot, color all connected colors which have the same color (similar to paints color pot), only 4-connected (no diagonals); right click fills with transparency
 - Draw shapes: line, rectangle, circle, triangle , hexagon, octagon (holding ctrl keeps the ratio fixed), outline only, pixel-perfect (Bresenham, no anti-aliasing)
 - Undo / redo, for every tool
 
@@ -95,7 +95,9 @@ The single-key bindings below are defaults: `shift+k` opens a keybinding menu wh
 - ctrl+y / ctrl+shift+z redo
 - g grid toggle
 - k background swatches (checkerboard, black, white, grey); k again cycles, esc closes
-- +/- zoom
+- +/- zoom; ctrl+wheel zooms, wheel / shift+wheel scroll
+- export dialog: 4, 8, 1 (16x) or arrows + return
+- upscale dialog: 2, 3, 4 or arrows + return
 
 #### Cursor
 - arrows move the cursor, ctrl+arrows move it and scroll the view by one pixel, so the image slides under the cursor when zoomed in
@@ -121,12 +123,14 @@ The single-key bindings below are defaults: `shift+k` opens a keybinding menu wh
 - f flip horizontal, shift+f flip vertical
 - ] rotate 90° clockwise, [ counter-clockwise
 - delete remove selected pixels
+- shift+arrows move the selection
 
 #### Colors
 - numbers 1-0 select colors 1-10, shift+1-0 colors 11-20
 - z / x select the extra colors 21 / 22
 - a new color (color picker)
 - shift+i pick a new color from the screen (pipette)
+- in the color picker: m cycles HSV / RGB / HSL. HSV: arrows change saturation/value, shift+arrows hue. RGB / HSL: up/down pick a channel, left/right change it (shift for steps of 10). tab the hex field, p or shift+i the screen pipette
 
 ## Non-goals
 Layers, animation frames, symmetry mode, anti-aliasing, filled shapes.
