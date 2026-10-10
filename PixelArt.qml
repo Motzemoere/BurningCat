@@ -662,7 +662,7 @@ Item {
     commitSelection()
     var base = Pixels.cleanName(fileName) || currentFile || Pixels.timestampName(new Date())
     var bg = exportBgs[exportBg].color
-    var name = Pixels.exportName(base, scale), bytes = Png.encode(bg ? Pixels.flatten(img, Pixels.parseHex(bg)) : img, scale)
+    var name = "Export/" + Pixels.exportName(base, scale), bytes = Png.encode(bg ? Pixels.flatten(img, Pixels.parseHex(bg)) : img, scale)
     var write = function() { root.writeBytes(name, bytes, function(ok) { if (ok) root.say("Exported " + name) }) }
     exists(name, function(yes) { if (yes) root.ask("Overwrite " + name + "?", write); else write() })
   }

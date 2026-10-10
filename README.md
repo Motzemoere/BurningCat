@@ -19,7 +19,7 @@ o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pix
 
 ## Files
 
-- Images: `~/Pictures/PixelArt/*.png`
+- Images: `~/Pictures/PixelArt/*.png`, exports in `~/Pictures/PixelArt/Export/`
 - Editor state (last file, palette, size, custom keybindings): `~/.local/state/omarchy/pixelart.json`
 
 ## Beyond the spec's keybindings
