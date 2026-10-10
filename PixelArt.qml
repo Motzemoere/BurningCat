@@ -44,7 +44,7 @@ Item {
   property int imgW: 32
   property int imgH: 32
   property var history: new Pixels.History()
-  property var colors: Pixels.mergePalette([], [], Pixels.PALETTE_SIZE)
+  property var colors: Pixels.mergePalette([], [], Pixels.PALETTE_SIZE).concat(Pixels.EXTRA_COLORS)  // palette, then the extra slots
   property int slot: 0
   property string current: "#ffffff"
   property string tool: "pixel"
@@ -68,23 +68,27 @@ Item {
   property var pendingConfirm: null
   property string pipetteTarget: ""
   property string pickerMode: ""
+  property bool savingAs: false  // the filename field was focused by save as; enter saves
+  property var keymap: Pixels.defaultBindings()
 
   readonly property bool textEditing: fileField.activeFocus || picker.editing || widthField.activeFocus || heightField.activeFocus
 
   readonly property var tools: [
-    { id: "pixel", icon: 0xf03eb, key: "p", label: "Pixel" },
-    { id: "eyedropper", icon: 0xf020a, key: "i", label: "Eyedropper" },
-    { id: "select", icon: 0xf0489, key: "v", label: "Select" },
-    { id: "fill", icon: 0xf0266, key: "b", label: "Color pot" },
-    { id: "line", icon: 0xf055e, key: "l", label: "Line" },
-    { id: "rectangle", icon: 0xf0763, key: "r", label: "Rectangle" },
-    { id: "circle", icon: 0xf0766, key: "C", label: "Circle" },
-    { id: "triangle", icon: 0xf0537, key: "t", label: "Triangle" },
-    { id: "hexagon", icon: 0xf02d9, key: "h", label: "Hexagon" },
-    { id: "octagon", icon: 0xf03c4, key: "O", label: "Octagon" },
+    { id: "pixel", icon: 0xf03eb, label: "Pixel" },
+    { id: "eyedropper", icon: 0xf020a, label: "Eyedropper" },
+    { id: "select", icon: 0xf0489, label: "Select" },
+    { id: "fill", icon: 0xf0266, label: "Color pot" },
+    { id: "line", icon: 0xf055e, label: "Line" },
+    { id: "rectangle", icon: 0xf0763, label: "Rectangle" },
+    { id: "circle", icon: 0xf0766, label: "Circle" },
+    { id: "triangle", icon: 0xf0537, label: "Triangle" },
+    { id: "hexagon", icon: 0xf02d9, label: "Hexagon" },
+    { id: "octagon", icon: 0xf03c4, label: "Octagon" },
   ]
   readonly property var shapeTools: ["line", "rectangle", "circle", "triangle", "hexagon", "octagon"]
   readonly property var zoomSteps: [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64]
+
+  function keyOf(id) { return Pixels.keyLabel(keymap[id]) }
 
   function toolLabel(id) {
     for (var i = 0; i < tools.length; i++) if (tools[i].id === id) return tools[i].label
@@ -377,6 +381,7 @@ Item {
     if (dialog === "confirm") return confirm.handleKey(event)
     if (dialog === "export") return exportKey(event)
     if (dialog === "upscale") return upscaleKey(event)
+    if (dialog === "keys") return keyMenu.handleKey(event)
     if (dialog !== "") {
       if (event.key === Qt.Key_Escape) { closeDialog(); return true }
       return false
@@ -390,6 +395,7 @@ Item {
       if (k === Qt.Key_C) { copySel(); return true }
       if (k === Qt.Key_X) { cutSel(); return true }
       if (k === Qt.Key_V) { paste(); return true }
+      if (k === Qt.Key_S) { saveAs(); return true }
     }
 
     var dx = k === Qt.Key_Left ? -1 : k === Qt.Key_Right ? 1 : 0
@@ -400,39 +406,58 @@ Item {
       return true
     }
     if (k === Qt.Key_Space) { activate(ctrl); return true }
-    if (k === Qt.Key_Delete || k === Qt.Key_Backspace || event.text === "c") {
-      if (sel) deleteSel()
-      else { commitSelection(); pushHistory(); drawPoints([{ x: cursorX, y: cursorY }], 0) }
-      return true
-    }
+    if (k === Qt.Key_Delete || k === Qt.Key_Backspace) { erase(); return true }
     if (k === Qt.Key_Escape) { cancel(); return true }
     if (ctrl) return false
 
     var t = event.text
-    for (var i = 0; i < tools.length; i++) if (tools[i].key === t) { setTool(tools[i].id); return true }
     // shift+1..0 by physical key, since the shifted characters differ per layout;
     // xkb keycodes 10..19 are that row, which maps straight onto slots 11..20.
     if (shift && event.nativeScanCode >= 10 && event.nativeScanCode <= 19) { selectSlot(event.nativeScanCode); return true }
     if (t >= "0" && t <= "9" && t.length === 1) { selectSlot((Number(t) + 9) % 10); return true }
-    switch (t) {
-      case "n": newImage(); return true
-      case "s": save(); return true
-      case "o": openFiles(); return true
-      case "e": dialog = "export"; return true
-      case "u": dialog = "upscale"; return true
-      case "q": root.requestClose(); return true
-      case "g": grid = !grid; return true
-      case "k": greyBg = !greyBg; writeState(); return true
-      case "+": case "=": zoom(1); return true
-      case "-": zoom(-1); return true
-      case "f": transformSel(Pixels.flipH); return true
-      case "F": transformSel(Pixels.flipV); return true
-      case "]": transformSel(function(b) { return Pixels.rotate(b, true) }); return true
-      case "[": transformSel(function(b) { return Pixels.rotate(b, false) }); return true
-      case "a": openPicker("add"); return true
-      case "I": startPipette("add"); return true
-    }
+    var action = Pixels.actionFor(keymap, t)
+    if (action) { runAction(action); return true }
+    if (t === "=" && keymap.zoomIn === "+") { zoom(1); return true }  // unshifted + on US layouts
     return false
+  }
+
+  function erase() {
+    if (sel) deleteSel()
+    else if (tool === "fill") fillAt(cursorX, cursorY, 0)
+    else { commitSelection(); pushHistory(); drawPoints([{ x: cursorX, y: cursorY }], 0) }
+  }
+
+  function runAction(id) {
+    for (var i = 0; i < tools.length; i++) if (tools[i].id === id) { setTool(id); return }
+    switch (id) {
+      case "erase": erase(); break
+      case "slot21": selectSlot(20); break
+      case "slot22": selectSlot(21); break
+      case "flipH": transformSel(Pixels.flipH); break
+      case "flipV": transformSel(Pixels.flipV); break
+      case "rotateCw": transformSel(function(b) { return Pixels.rotate(b, true) }); break
+      case "rotateCcw": transformSel(function(b) { return Pixels.rotate(b, false) }); break
+      case "addColor": openPicker("add"); break
+      case "pipette": startPipette("add"); break
+      case "grid": grid = !grid; break
+      case "background": greyBg = !greyBg; writeState(); break
+      case "zoomIn": zoom(1); break
+      case "zoomOut": zoom(-1); break
+      case "new": newImage(); break
+      case "save": save(); break
+      case "load": openFiles(); break
+      case "export": dialog = "export"; break
+      case "upscale": dialog = "upscale"; break
+      case "keys": dialog = "keys"; break
+      case "quit": root.requestClose(); break
+    }
+  }
+
+  function rebindKey(id, key) {
+    var next = Object.assign({}, keymap), other = Pixels.rebind(next, id, key)
+    keymap = next
+    writeState()
+    if (other) say(Pixels.ACTIONS.filter(function(a) { return a[0] === other })[0][1] + " moved to " + keyOf(other))
   }
 
   // ------------------------------------------------------------ palette
@@ -446,6 +471,9 @@ Item {
     colors = next
     writeState()
   }
+
+  // Replace the palette part, keeping the extra slots.
+  function setPalette(palette) { setColors(palette.concat(colors.slice(Pixels.PALETTE_SIZE))) }
 
   function addColor(hex) {
     var next = colors.slice(), i = next.indexOf("")
@@ -544,6 +572,13 @@ Item {
     })
   }
 
+  function saveAs() {
+    savingAs = true
+    fileField.forceActiveFocus()
+    fileField.selectAll()
+    say("Type a name, enter saves, esc cancels")
+  }
+
   // Never asks: a typed name that belongs to another file falls back to
   // this image's own file or a fresh timestamp name.
   function autosave() {
@@ -569,7 +604,7 @@ Item {
   function newImage() {
     autosave()
     resetDocument(Pixels.create(imgW, imgH))
-    setColors(themeColors())
+    setPalette(themeColors())
     selectSlot(0)
     currentFile = ""
     fileName = ""
@@ -591,7 +626,7 @@ Item {
       var dec
       try { dec = Png.decode(Png.base64Decode(out), Pixels.MAX_SIDE) } catch (e) { root.say(e.message); return }
       root.resetDocument(dec)
-      if (!restoring) root.setColors(Pixels.mergePalette(Pixels.topColors(dec, Pixels.PALETTE_SIZE), root.themeColors(), Pixels.PALETTE_SIZE))
+      if (!restoring) root.setPalette(Pixels.mergePalette(Pixels.topColors(dec, Pixels.PALETTE_SIZE), root.themeColors(), Pixels.PALETTE_SIZE))
       root.selectSlot(Math.max(0, root.slot))
       root.currentFile = name
       root.fileName = name.replace(/\.png$/, "")
@@ -647,7 +682,7 @@ Item {
   }
 
   function writeState() {
-    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors, width: imgW, height: imgH, greyBg: greyBg }, null, 2) + "\n")
+    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors.slice(0, Pixels.PALETTE_SIZE), extras: colors.slice(Pixels.PALETTE_SIZE), width: imgW, height: imgH, greyBg: greyBg, keys: Pixels.overridesOf(keymap) }, null, 2) + "\n")
   }
 
   function restoreState() {
@@ -655,12 +690,15 @@ Item {
     try { s = JSON.parse(stateFile.text() || "{}") } catch (e) { s = {} }
     var w = Number(s.width), h = Number(s.height)
     if (w >= 1 && h >= 1 && w <= Pixels.MAX_SIDE && h <= Pixels.MAX_SIDE) resetDocument(Pixels.create(w, h))
+    var valid = function(c) { return Pixels.parseHex(c) >= 0 ? String(c).toLowerCase() : "" }
     // Older state files hold 10 slots; pad them instead of dropping the user's palette.
-    colors = Array.isArray(s.palette) && s.palette.length >= 10
-      ? s.palette.concat(new Array(Pixels.PALETTE_SIZE).fill("")).slice(0, Pixels.PALETTE_SIZE)
-          .map(function(c) { return Pixels.parseHex(c) >= 0 ? String(c).toLowerCase() : "" })
+    var palette = Array.isArray(s.palette) && s.palette.length >= 10
+      ? s.palette.concat(new Array(Pixels.PALETTE_SIZE).fill("")).slice(0, Pixels.PALETTE_SIZE).map(valid)
       : themeColors()
+    var extras = Array.isArray(s.extras) && s.extras.length === Pixels.EXTRA_COLORS.length ? s.extras.map(valid) : Pixels.EXTRA_COLORS
+    colors = palette.concat(extras)
     greyBg = s.greyBg === true
+    keymap = Pixels.bindings(s.keys)
     selectSlot(0)
     if (typeof s.lastFile === "string" && Pixels.cleanName(s.lastFile) === s.lastFile) loadFile(s.lastFile, true)
   }
@@ -795,18 +833,18 @@ Item {
             IconButton {
               text: "…"
               selected: !(root.imgW === root.imgH && [16, 32, 64, 128].indexOf(root.imgW) >= 0)
-              tooltipText: "Custom size (max 256x256)"
+              tooltipText: "Custom size (max " + Pixels.MAX_SIDE + "x" + Pixels.MAX_SIDE + ")"
               onClicked: { widthField.text = String(root.imgW); heightField.text = String(root.imgH); root.dialog = "size"; widthField.forceActiveFocus() }
             }
             IconButton {
               text: "⤢"
-              tooltipText: "Upscale (u)"
+              tooltipText: "Upscale (" + root.keyOf("upscale") + ")"
               onClicked: root.dialog = "upscale"
             }
-            IconButton { glyph: 0xf02c1; selected: root.grid; tooltipText: "Grid (g)"; onClicked: root.grid = !root.grid }
-            IconButton { glyph: 0xf0139; selected: root.greyBg; tooltipText: "Grey background (k)"; onClicked: { root.greyBg = !root.greyBg; root.writeState() } }
-            IconButton { glyph: 0xf06ec; tooltipText: "Zoom out (-)"; onClicked: root.zoom(-1) }
-            IconButton { glyph: 0xf06ed; tooltipText: "Zoom in (+)"; onClicked: root.zoom(1) }
+            IconButton { glyph: 0xf02c1; selected: root.grid; tooltipText: "Grid (" + root.keyOf("grid") + ")"; onClicked: root.grid = !root.grid }
+            IconButton { glyph: 0xf0139; selected: root.greyBg; tooltipText: "Grey background (" + root.keyOf("background") + ")"; onClicked: { root.greyBg = !root.greyBg; root.writeState() } }
+            IconButton { glyph: 0xf06ec; tooltipText: "Zoom out (" + root.keyOf("zoomOut") + ")"; onClicked: root.zoom(-1) }
+            IconButton { glyph: 0xf06ed; tooltipText: "Zoom in (" + root.keyOf("zoomIn") + ")"; onClicked: root.zoom(1) }
 
             Repeater {
               model: root.tools
@@ -814,13 +852,14 @@ Item {
                 required property var modelData
                 glyph: modelData.icon
                 selected: root.tool === modelData.id
-                tooltipText: modelData.label + " (" + (modelData.key !== modelData.key.toLowerCase() ? "shift+" + modelData.key.toLowerCase() : modelData.key) + ")"
+                tooltipText: modelData.label + " (" + root.keyOf(modelData.id) + ")"
                 onClicked: root.setTool(modelData.id)
               }
             }
 
             IconButton { glyph: 0xf054c; tooltipText: "Undo (ctrl+z)"; onClicked: root.undo() }
             IconButton { glyph: 0xf044e; tooltipText: "Redo (ctrl+y)"; onClicked: root.redo() }
+            IconButton { glyph: 0xf030c; tooltipText: "Keybindings (" + root.keyOf("keys") + ")"; onClicked: root.dialog = "keys" }
           }
 
           PixelView {
@@ -849,52 +888,65 @@ Item {
           id: bottomRow
           spacing: Style.spacing.lg
 
-          Grid {
-            columns: 10
-            spacing: Style.spacing.xs
-            anchors.verticalCenter: parent.verticalCenter
+          Component {
+            id: slotCell
+            Rectangle {
+              required property int modelData   // slot index
+              readonly property string hex: root.colors[modelData] || ""
+              width: Style.space(22)
+              height: width
+              color: hex || "transparent"
+              border.width: modelData === root.slot ? 2 : 1
+              border.color: modelData === root.slot ? Color.accent : Util.alpha(Color.popups.text, hex ? 0.3 : 0.15)
 
-            Repeater {
-              model: Pixels.PALETTE_SIZE
-              Rectangle {
-                required property int index
-                readonly property string hex: root.colors[index] || ""
-                width: Style.space(22)
-                height: width
-                color: hex || "transparent"
-                border.width: index === root.slot ? 2 : 1
-                border.color: index === root.slot ? Color.accent : Util.alpha(Color.popups.text, hex ? 0.3 : 0.15)
+              Label {
+                anchors.centerIn: parent
+                visible: !parent.hex
+                text: parent.modelData < 20 ? String((parent.modelData + 1) % 10) : root.keyOf("slot" + (parent.modelData + 1))
+                opacity: 0.4
+                font.pixelSize: Style.font.caption
+              }
 
-                Label {
-                  anchors.centerIn: parent
-                  visible: !parent.hex
-                  text: String((parent.index + 1) % 10)
-                  opacity: 0.4
-                  font.pixelSize: Style.font.caption
-                }
-
-                MouseArea {
-                  anchors.fill: parent
-                  acceptedButtons: Qt.LeftButton | Qt.RightButton
-                  onClicked: function(m) {
-                    root.selectSlot(parent.index)
-                    if (m.button === Qt.RightButton) root.dialog = "slot"
-                  }
+              MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: function(m) {
+                  root.selectSlot(parent.modelData)
+                  if (m.button === Qt.RightButton) root.dialog = "slot"
                 }
               }
             }
           }
 
+          // The two extra slots (21, 22) sit in front of the number-key slots.
           Grid {
-            columns: 3
+            columns: 1
             spacing: Style.spacing.xs
             anchors.verticalCenter: parent.verticalCenter
+            Repeater { model: [20, 21]; delegate: slotCell }
+          }
 
-            IconButton { glyph: 0xf0415; tooltipText: "Add color (a)"; onClicked: root.openPicker("add") }
-            IconButton { glyph: 0xf0752; tooltipText: "New (n)"; onClicked: root.newImage() }
-            IconButton { glyph: 0xf0193; tooltipText: "Save (s)"; onClicked: root.save() }
-            IconButton { glyph: 0xf0770; tooltipText: "Load (o)"; onClicked: root.openFiles() }
-            IconButton { glyph: 0xf0207; tooltipText: "Export (e)"; onClicked: root.dialog = "export" }
+          Grid {
+            columns: 10
+            spacing: Style.spacing.xs
+            anchors.verticalCenter: parent.verticalCenter
+            Repeater { model: 20; delegate: slotCell }
+          }
+
+          IconButton { anchors.top: fileOps.top; glyph: 0xf0415; tooltipText: "Add color (" + root.keyOf("addColor") + ")"; onClicked: root.openPicker("add") }
+
+          Grid {
+            id: fileOps
+            columns: 3
+            spacing: Style.spacing.xs
+            leftPadding: Style.spacing.xxl * 2  // sets file operations apart from the palette
+            anchors.verticalCenter: parent.verticalCenter
+
+            IconButton { glyph: 0xf0752; tooltipText: "New (" + root.keyOf("new") + ")"; onClicked: root.newImage() }
+            IconButton { glyph: 0xf0193; tooltipText: "Save (" + root.keyOf("save") + ")"; onClicked: root.save() }
+            IconButton { glyph: 0xf0cfb; tooltipText: "Save as (ctrl+s)"; onClicked: root.saveAs() }
+            IconButton { glyph: 0xf0770; tooltipText: "Load (" + root.keyOf("load") + ")"; onClicked: root.openFiles() }
+            IconButton { glyph: 0xf0207; tooltipText: "Export (" + root.keyOf("export") + ")"; onClicked: root.dialog = "export" }
           }
         }
 
@@ -904,7 +956,12 @@ Item {
           placeholderText: "Untitled (saved with a timestamp name)"
           text: root.fileName
           onTextEdited: root.fileName = text
-          onAccepted: keys.forceActiveFocus()
+          onAccepted: {
+            var saving = root.savingAs
+            keys.forceActiveFocus()  // clears savingAs
+            if (saving) root.save()
+          }
+          onActiveFocusChanged: if (!activeFocus) root.savingAs = false
           Keys.onEscapePressed: keys.forceActiveFocus()
         }
 
@@ -1020,7 +1077,7 @@ Item {
 
         function apply() {
           var w = parseInt(widthField.text, 10), h = parseInt(heightField.text, 10)
-          if (!(w >= 1 && h >= 1 && w <= Pixels.MAX_SIDE && h <= Pixels.MAX_SIDE)) { root.say("Size must be 1 to 256"); return }
+          if (!(w >= 1 && h >= 1 && w <= Pixels.MAX_SIDE && h <= Pixels.MAX_SIDE)) { root.say("Size must be 1 to " + Pixels.MAX_SIDE); return }
           root.closeDialog()
           root.resizeCanvas(w, h)
         }
@@ -1030,7 +1087,7 @@ Item {
           TextField {
             id: widthField
             width: Style.space(60)
-            validator: IntValidator { bottom: 1; top: 256 }
+            validator: IntValidator { bottom: 1; top: Pixels.MAX_SIDE }
             onAccepted: heightField.forceActiveFocus()
             Keys.onEscapePressed: root.closeDialog()
           }
@@ -1038,7 +1095,7 @@ Item {
           TextField {
             id: heightField
             width: Style.space(60)
-            validator: IntValidator { bottom: 1; top: 256 }
+            validator: IntValidator { bottom: 1; top: Pixels.MAX_SIDE }
             onAccepted: sizeDialog.apply()
             Keys.onEscapePressed: root.closeDialog()
           }
@@ -1066,6 +1123,16 @@ Item {
             }
           }
         }
+      }
+
+      KeyMenu {
+        id: keyMenu
+        anchors.fill: parent
+        opened: root.dialog === "keys"
+        keymap: root.keymap
+        onCanceled: root.closeDialog()
+        onRebound: function(id, key) { root.rebindKey(id, key) }
+        onReset: { root.keymap = Pixels.defaultBindings(); root.writeState(); root.say("Keybindings reset") }
       }
 
       ConfirmDialog {

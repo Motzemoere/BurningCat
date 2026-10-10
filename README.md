@@ -20,7 +20,7 @@ o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pix
 ## Files
 
 - Images: `~/Pictures/PixelArt/*.png`
-- Editor state (last file, palette, size): `~/.local/state/omarchy/pixelart.json`
+- Editor state (last file, palette, size, custom keybindings): `~/.local/state/omarchy/pixelart.json`
 
 ## Beyond the spec's keybindings
 
@@ -32,6 +32,7 @@ o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pix
   `shift+arrows` hue. RGB / HSL: up/down pick a channel, left/right change it
   (`shift` for steps of 10). `tab` the hex field, `p` or `shift+i` the screen pipette
 - export dialog: `4`, `8`, `1` (16x) or arrows + `return`
+- upscale dialog: `2`, `3`, `4` or arrows + `return`
 
 ## Development
 

@@ -16,7 +16,8 @@ const load = (file, names) => {
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
   "fill", "line", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
-  "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History"])
+  "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History",
+  "ACTIONS", "bindable", "defaultBindings", "rebind", "bindings", "overridesOf", "actionFor", "keyLabel"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
 
 let pass = 0, fail = 0
@@ -109,6 +110,21 @@ group("scale")
 {
   const u = P.scale(img(2, 1, [RED, BLUE]), 2)
   t("2x makes 2x2 blocks", u.w === 4 && u.h === 2 && u.data.join() === [RED, RED, BLUE, BLUE, RED, RED, BLUE, BLUE].join())
+}
+
+group("keybindings")
+{
+  const keys = P.ACTIONS.map(a => a[2])
+  t("defaults are unique and bindable", new Set(keys).size === keys.length && keys.every(P.bindable))
+  t("digits, space, empty not bindable", !P.bindable("1") && !P.bindable(" ") && !P.bindable("") && !P.bindable("ab"))
+  const m = P.defaultBindings()
+  t("rebind to a free key", P.rebind(m, "save", "w") === "" && m.save === "w")
+  t("rebind to a used key swaps", P.rebind(m, "save", "r") === "rectangle" && m.save === "r" && m.rectangle === "w")
+  t("overrides hold only changes", JSON.stringify(P.overridesOf(m)) === JSON.stringify({ rectangle: "w", save: "r" }))
+  t("overrides round-trip", JSON.stringify(P.bindings(P.overridesOf(m))) === JSON.stringify(m))
+  const bad = P.bindings({ save: "1", nope: "x", grid: 5 })
+  t("bad overrides ignored", JSON.stringify(bad) === JSON.stringify(P.defaultBindings()))
+  t("actionFor / keyLabel", P.actionFor(m, "C") === "circle" && P.keyLabel("C") === "shift+c" && P.keyLabel("]") === "]")
 }
 
 group("palette")

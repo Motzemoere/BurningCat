@@ -28,8 +28,8 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 ## Tools
 
 #### Sidebar
-- Size selector 16x16,32x32,64x64,128x128, custom (max 256x256)
-- Upscale 2x, 3x or 4x: every pixel becomes a 2x2, 3x3 or 4x4 block (nearest-neighbour), for finer detail work; refused if the result exceeds 256x256
+- Size selector 16x16,32x32,64x64,128x128, custom (max 512x512)
+- Upscale 2x, 3x or 4x: every pixel becomes a 2x2, 3x3 or 4x4 block (nearest-neighbour), for finer detail work; refused if the result exceeds 512x512
 - Zoom zoom in and out of the canvas, especially important for bigger canvas
 - Grid toggle, shows pixel borders
 - Pixel drawer (left click draws a pixel right click removes a pixel, removed pixels are transparent)
@@ -40,11 +40,11 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Undo / redo, for every tool
 
 #### Bottom bar
-- 20 preselected colors (2 rows of 10)
+- 20 preselected colors (2 rows of 10), plus 2 extra slots in front of them, set slightly apart; they default to black and white and keep their colors when a new image is made or one is loaded
 - Add color button (opens a color picker to add a new color); the picker has HSV, RGB and HSL modes
 - Right click on a color: replace (color picker) or delete
 - Screen pipette button in the color picker: pick a color from anywhere on screen (e.g. a reference image in another window) via `hyprpicker`; esc cancels
-- Save, load, new and export button
+- Save, save as, load, new and export button
 - Filename field, editable
 - Status: cursor x,y, current tool, current color
 
@@ -58,14 +58,14 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 - Default save location ~/Pictures/PixelArt/
 - Untitled images are named by timestamp (e.g. `2026-10-10_14-30-05.png`)
 - Saving under an existing filename asks before overwriting
-- Load: PNGs larger than 256x256 are refused with a message
+- Load: PNGs larger than 512x512 are refused with a message
 - Export: PNG scaled up 4x, 8x or 16x with nearest-neighbour (no blur)
 - Copy/paste uses the system clipboard (`wl-copy` / `wl-paste`), so selections can be pasted into other apps and images pasted in
 
 ## Palette
 - New image: the 10 colors come from the current Omarchy theme
 - Loading an image: the palette is taken from the image's colors (the 20 most used); if it has fewer, the remaining slots are filled with theme colors
-- Add color when all 20 slots are full replaces the selected slot
+- Add color when all 22 slots (including the extra two) are full replaces the selected slot
 
 ## Behavior
 - Fast and responsive
@@ -78,11 +78,15 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 
 ## Keybindings
 
+The single-key bindings below are defaults: `shift+k` opens a keybinding menu where you select an action, press enter, then press the new key (taking a key in use swaps the two bindings; `shift+r` resets all). Arrows, space, esc, delete/backspace, ctrl combinations and the number keys are fixed.
+
 #### General
 - n new
 - s save
+- ctrl+s save as (focuses the filename field; enter saves under the typed name)
 - o load
 - e export
+- shift+k keybinding menu
 - u upscale
 - q quit
 - esc cancel selection / shape in progress
@@ -95,7 +99,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 #### Cursor
 - arrows move the cursor
 - space draw a pixel / set start and end point of a shape or selection (ctrl+space keeps the ratio)
-- c / delete / backspace remove a pixel (or the selected pixels)
+- c / delete / backspace remove a pixel (or the selected pixels; with the color pot, all connected pixels of that color)
 
 #### Tools
 - p pixel drawer
@@ -119,6 +123,7 @@ Plugin to make pixel art similar to paint but with only selected features focuse
 
 #### Colors
 - numbers 1-0 select colors 1-10, shift+1-0 colors 11-20
+- z / x select the extra colors 21 / 22
 - a new color (color picker)
 - shift+i pick a new color from the screen (pipette)
 

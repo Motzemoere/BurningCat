@@ -4,10 +4,12 @@
 // pixels as 0xAARRGGBB, 0 = transparent. Everything here is free of QML
 // types so it runs under plain node for the tests.
 
-var MAX_SIDE = 256
+var MAX_SIDE = 512
 var SIZES = [16, 32, 64, 128]
 var HISTORY_LIMIT = 100
 var PALETTE_SIZE = 20
+// Extra slots 21/22 after the palette; new and loaded images leave them alone.
+var EXTRA_COLORS = ["#000000", "#ffffff"]
 
 function create(w, h) { return { w: w, h: h, data: new Uint32Array(w * h) } }
 
@@ -336,6 +338,64 @@ function cleanName(name) {
 }
 
 function exportName(name, scale) { return String(name).replace(/\.png$/i, "") + "_" + scale + "x.png" }
+
+// ------------------------------------------------------------------ keybindings
+
+// Rebindable single-key actions as [id, label, default key]. A key is the
+// typed character (event.text), so an uppercase letter means shift+letter.
+var ACTIONS = [
+  ["pixel", "Pixel", "p"], ["eyedropper", "Eyedropper", "i"], ["select", "Select", "v"], ["fill", "Color pot", "b"],
+  ["line", "Line", "l"], ["rectangle", "Rectangle", "r"], ["circle", "Circle", "C"], ["triangle", "Triangle", "t"],
+  ["hexagon", "Hexagon", "h"], ["octagon", "Octagon", "O"],
+  ["erase", "Remove pixel / selection", "c"],
+  ["flipH", "Flip horizontal", "f"], ["flipV", "Flip vertical", "F"],
+  ["rotateCw", "Rotate clockwise", "]"], ["rotateCcw", "Rotate counter-clockwise", "["],
+  ["slot21", "Color slot 21", "z"], ["slot22", "Color slot 22", "x"],
+  ["addColor", "Add color", "a"], ["pipette", "Screen pipette", "I"],
+  ["grid", "Grid", "g"], ["background", "Grey background", "k"], ["zoomIn", "Zoom in", "+"], ["zoomOut", "Zoom out", "-"],
+  ["new", "New", "n"], ["save", "Save", "s"], ["load", "Load", "o"], ["export", "Export", "e"], ["upscale", "Upscale", "u"],
+  ["keys", "Keybindings", "K"], ["quit", "Quit", "q"],
+]
+
+// Digits pick colors and space draws, so neither can be bound.
+function bindable(key) { return typeof key === "string" && key.length === 1 && !/[0-9\s]/.test(key) }
+
+function defaultBindings() {
+  var map = {}
+  ACTIONS.forEach(function(a) { map[a[0]] = a[2] })
+  return map
+}
+
+// Bind id to key. The action that held key takes id's old key, so every
+// action keeps exactly one key. Returns the swapped action id or "".
+function rebind(map, id, key) {
+  if (map[id] === undefined || !bindable(key) || map[id] === key) return ""
+  var other = actionFor(map, key)
+  if (other) map[other] = map[id]
+  map[id] = key
+  return other
+}
+
+// Defaults with the user's {id: key} overrides applied; bad entries are skipped.
+function bindings(overrides) {
+  var map = defaultBindings()
+  for (var id in (overrides || {})) rebind(map, id, overrides[id])
+  return map
+}
+
+// The entries that differ from the defaults, for the state file.
+function overridesOf(map) {
+  var def = defaultBindings(), out = {}
+  for (var id in map) if (map[id] !== def[id]) out[id] = map[id]
+  return out
+}
+
+function actionFor(map, key) {
+  for (var id in map) if (map[id] === key) return id
+  return ""
+}
+
+function keyLabel(key) { return key && key !== key.toLowerCase() ? "shift+" + key.toLowerCase() : key }
 
 // ------------------------------------------------------------------ history
 
