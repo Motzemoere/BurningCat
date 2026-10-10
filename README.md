@@ -1,6 +1,6 @@
 # PixelArt
 
-![PixelArt editor](pixelart_demo.png)
+<img src="pixelart_demo.png" alt="PixelArt editor" width="500">
 
 A small, keyboard-driven pixel art editor for [Omarchy](https://omarchy.org).
 It runs as an Omarchy shell plugin: a keybind opens it as a normal tiled
