@@ -36,6 +36,14 @@ Then bind a key to open and close it in `~/.config/hypr/bindings.lua`:
 o.bind("SUPER + ALT + P", "BurningCat", "omarchy-shell shell toggle motzemoere.burningcat")
 ```
 
+## Remove
+
+```bash
+omarchy plugin remove motzemoere.burningcat
+```
+
+Then delete the keybind. Your images and editor state (see Files) are kept.
+
 ## Usage
 
 Press `shift+k` to open and change keybindings.
@@ -71,3 +79,7 @@ The UI is QML; the drawing logic lives in plain JavaScript (`Pixels.js`,
 - Open multiple images, select pixels from one and paste them into another
 - Align selected pixels to the page: center, horizontally, vertically
 - Multiple selections: select several pixel groups and align them (horizontally, vertically, evenly spaced, etc.)
+
+## License
+
+MIT, see [LICENSE](LICENSE).
