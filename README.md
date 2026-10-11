@@ -5,6 +5,7 @@
 A small, keyboard-driven pixel art editor for [Omarchy](https://omarchy.org).
 It runs as an Omarchy shell plugin: a keybind opens it as a normal tiled
 Hyprland window, and it restyles itself live whenever you change the Omarchy theme.
+It is inspired by MS Paint.
 
 ## Features
 
