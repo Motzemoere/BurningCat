@@ -1,6 +1,6 @@
 # BurningCat
 
-<p align="center"><img src="burningcat_demo.png" alt="BurningCat editor" width="500"></p>
+<p align="center"><img src="preview.png" alt="BurningCat editor" width="500"></p>
 
 A small, keyboard-driven pixel art editor for [Omarchy](https://omarchy.org).
 It runs as an Omarchy shell plugin: a keybind opens it as a normal tiled
