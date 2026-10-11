@@ -67,7 +67,7 @@ The UI is QML; the drawing logic lives in plain JavaScript (`Pixels.js`,
 [docs/adr/](docs/adr/).
 
 ## Next ideas
-
+- Upscaling algorythms, select upscaling faktor and create a custom algorythm what happens, e.g sirpinski (turn one pixel into 9, 3x3 and let the middle pixel empty)
 - Open multiple images, select pixels from one and paste them into another
 - Align selected pixels to the page: center, horizontally, vertically
 - Multiple selections: select several pixel groups and align them (horizontally, vertically, evenly spaced, etc.)

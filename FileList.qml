@@ -2,7 +2,7 @@ import QtQuick
 import qs.Commons
 import qs.Ui
 
-// Load dialog: the PNGs in the save directory, newest first.
+// Load dialog: the PNGs in the save directory, newest first, and a way out to any folder.
 Dialog {
   id: root
 
@@ -11,6 +11,7 @@ Dialog {
   property int index: 0
 
   signal chosen(string name)
+  signal browse()
 
   title: "Load"
 
@@ -24,6 +25,7 @@ Dialog {
     else if (event.key === Qt.Key_Up || event.text === "k") move(-1)
     else if (event.key === Qt.Key_Down || event.text === "j") move(1)
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (files.length) chosen(files[index]) }
+    else if (event.text === "b") browse()
     else return false
     return true
   }
@@ -71,5 +73,11 @@ Dialog {
         source: root.opened ? "file://" + root.dir + "/" + encodeURIComponent(modelData) : ""
       }
     }
+  }
+
+  Button {
+    text: "Browse all folders… (b)"
+    bordered: true
+    onClicked: root.browse()
   }
 }

@@ -668,19 +668,37 @@ Item {
     })
   }
 
+  // name is relative to dir, or an absolute path from the browse dialog. Absolute
+  // files are imported: the document is not tied to them, so saves go to dir.
   function readFile(name, restoring) {
-    runJob(["base64", "-w0", dir + "/" + name], "", function(ok, out) {
-      if (!ok) { if (!restoring) root.say("Could not read " + name); return }
+    var external = name.charAt(0) === "/", base = name.split("/").pop()
+    runJob(["base64", "-w0", external ? name : dir + "/" + name], "", function(ok, out) {
+      if (!ok) { if (!restoring) root.say("Could not read " + base); return }
       var dec
       try { dec = Png.decode(Png.base64Decode(out), Pixels.MAX_SIDE) } catch (e) { root.say(e.message); return }
       root.resetDocument(dec)
       if (!restoring) root.setPalette(Pixels.mergePalette(Pixels.topColors(dec, Pixels.PALETTE_SIZE), root.themeColors(), Pixels.PALETTE_SIZE))
       root.selectSlot(Math.max(0, root.slot))
-      root.currentFile = name
-      root.fileName = name.replace(/\.png$/, "")
+      root.currentFile = external ? "" : name
+      root.fileName = base.replace(/\.png$/, "")
       root.writeState()
-      root.say("Loaded " + name)
+      root.say("Loaded " + base)
     })
+  }
+
+  // Out of process: QtQuick.Dialogs runs GTK in the shell and aborts it inside gvfs.
+  Process {
+    id: browser
+    command: ["omarchy-file-select", "--title", "Load image", "--extensions", "png"]
+    stdout: StdioCollector {
+      onStreamFinished: { var path = text.trim(); if (path) root.loadFile(path, false) }
+    }
+    onExited: function(code) { if (code > 1) root.say("File chooser failed") }
+  }
+
+  function browseFiles() {
+    closeDialog()
+    browser.running = true
   }
 
   function exportImage(scale) {
@@ -697,7 +715,8 @@ Item {
   readonly property var exportScales: [4, 8, 16]
   property int exportBg: 0
   readonly property var exportBgs: [{ label: "Transparent", color: "" }, { label: "Grey", color: Pixels.GREY_BG },
-                                    { label: "White", color: "#ffffff" }, { label: "Current color", color: current }]
+                                    { label: "White", color: "#ffffff" }, { label: "Black", color: "#000000" },
+                                    { label: "Current " + current, color: current }]
 
   function exportKey(event) {
     if (event.key === Qt.Key_Escape) closeDialog()
@@ -1139,6 +1158,7 @@ Item {
         dir: root.dir
         files: root.files
         onChosen: function(name) { root.loadFile(name, false) }
+        onBrowse: root.browseFiles()
         onCanceled: root.closeDialog()
       }
 
