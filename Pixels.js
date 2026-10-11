@@ -7,6 +7,7 @@
 var MAX_SIDE = 512
 var SIZES = [16, 32, 64, 128]
 var HISTORY_LIMIT = 100
+var HISTORY_BYTES = 32 << 20  // undo copies live in the shell process; big images get fewer
 var PALETTE_SIZE = 20
 // Extra slots 21/22 after the palette; new and loaded images leave them alone.
 var EXTRA_COLORS = ["#000000", "#ffffff"]
@@ -367,6 +368,12 @@ function cleanName(name) {
   return n + ".png"
 }
 
+// File an autosave writes: the typed name only when it is new, else this
+// image's own file, else the timestamp name. Never another existing file.
+function autosaveName(typed, currentFile, typedExists, stamp) {
+  return typed && typed !== currentFile && !typedExists ? typed : currentFile || stamp
+}
+
 function exportName(name, scale) { return String(name).replace(/\.png$/i, "") + "_" + scale + "x.png" }
 
 // ------------------------------------------------------------------ keybindings
@@ -434,7 +441,8 @@ function History() { this.undo = []; this.redo = [] }
 
 History.prototype.push = function(img) {
   this.undo.push(clone(img))
-  if (this.undo.length > HISTORY_LIMIT) this.undo.shift()
+  var limit = Math.max(10, Math.min(HISTORY_LIMIT, Math.floor(HISTORY_BYTES / (img.data.length * 4))))
+  while (this.undo.length > limit) this.undo.shift()
   this.redo = []
 }
 

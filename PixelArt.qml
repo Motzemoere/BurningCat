@@ -72,6 +72,7 @@ Item {
   property string pickerMode: ""
   property bool savingAs: false  // the filename field was focused by save as; enter saves
   property var keymap: Pixels.defaultBindings()
+  property bool snapshotPending: false  // the gesture's first real change takes the undo snapshot
 
   readonly property bool textEditing: fileField.activeFocus || picker.editing || widthField.activeFocus || heightField.activeFocus
 
@@ -134,10 +135,12 @@ Item {
   function pushHistory() { history.push(img); rev++ }
 
   function drawPoints(points, c) {
-    var changed = []
-    for (var i = 0; i < points.length; i++)
-      if (Pixels.set(img, points[i].x, points[i].y, c)) changed.push(points[i])
-    if (changed.length) { view.paintPixels(changed); rev++ }
+    var changed = points.filter(function(p) { return Pixels.inside(img, p.x, p.y) && Pixels.get(img, p.x, p.y) !== c })
+    if (!changed.length) return
+    if (snapshotPending) { pushHistory(); snapshotPending = false }
+    changed.forEach(function(p) { Pixels.set(img, p.x, p.y, c) })
+    view.paintPixels(changed)
+    rev++
   }
 
   function currentInt() { return Pixels.parseHex(current) }
@@ -186,7 +189,7 @@ Item {
   }
 
   function commitShape(a, b, keepRatio) {
-    pushHistory()
+    snapshotPending = true
     drawPoints(Pixels.shape(tool, a.x, a.y, b.x, b.y, keepRatio), currentInt())
     cancelShape()
   }
@@ -198,8 +201,10 @@ Item {
 
   function fillAt(x, y, c) {
     commitSelection()
+    if (!Pixels.inside(img, x, y) || Pixels.get(img, x, y) === c) return
     pushHistory()
-    if (Pixels.fill(img, x, y, c)) view.repaintAll()
+    Pixels.fill(img, x, y, c)
+    view.repaintAll()
   }
 
   // ------------------------------------------------------------ selection
@@ -328,7 +333,7 @@ Item {
   // ------------------------------------------------------------ input
   function activate(keepRatio) {
     var p = { x: cursorX, y: cursorY }
-    if (tool === "pixel") { commitSelection(); pushHistory(); drawPoints(Pixels.stamp([p], penSize), currentInt()) }
+    if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([p], penSize), currentInt()) }
     else if (tool === "eyedropper") pick(p.x, p.y)
     else if (tool === "fill") fillAt(p.x, p.y, currentInt())
     else if (!startPt) {
@@ -354,7 +359,7 @@ Item {
     var erase = button === Qt.RightButton
     if (mods & Qt.AltModifier) { pick(x, y); return }
     drag = { last: { x: x, y: y }, move: false }
-    if (tool === "pixel") { commitSelection(); pushHistory(); drawPoints(Pixels.stamp([{ x: x, y: y }], penSize), erase ? 0 : currentInt()); drag.erase = erase }
+    if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([{ x: x, y: y }], penSize), erase ? 0 : currentInt()); drag.erase = erase }
     else if (tool === "eyedropper") pick(x, y)
     else if (tool === "fill") fillAt(x, y, erase ? 0 : currentInt())
     else if (tool === "select" && inSel(x, y)) { lift(); drag.move = true }
@@ -380,7 +385,8 @@ Item {
   }
 
   function onPointerReleased(x, y, mods) {
-    if (drag && startPt && isShape(tool)) commitShape(startPt, { x: x, y: y }, mods & Qt.ControlModifier)
+    var p = { x: Math.max(0, Math.min(imgW - 1, x)), y: Math.max(0, Math.min(imgH - 1, y)) }  // same clamp as the preview
+    if (drag && startPt && isShape(tool)) commitShape(startPt, p, mods & Qt.ControlModifier)
     else if (drag && startPt) startPt = null
     drag = null
   }
@@ -437,7 +443,7 @@ Item {
   function erase() {
     if (sel) deleteSel()
     else if (tool === "fill") fillAt(cursorX, cursorY, 0)
-    else { commitSelection(); pushHistory(); drawPoints(Pixels.stamp([{ x: cursorX, y: cursorY }], penSize), 0) }
+    else { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([{ x: cursorX, y: cursorY }], penSize), 0) }
   }
 
   function cyclePenSize(d) {
@@ -568,16 +574,18 @@ Item {
   function exists(name, done) { runJob(["test", "-e", dir + "/" + name], "", function(ok) { done(ok) }) }
 
   // Save `bytes` (encoded at revision r) as the current document's file.
-  function writeImage(name, bytes, r, quiet) {
+  // done(ok) is optional.
+  function writeImage(name, bytes, r, quiet, done) {
     var doc = docId
     writeBytes(name, bytes, function(ok) {
-      if (!ok) return
-      if (!quiet) root.say("Saved " + name)
-      if (doc !== root.docId) return
-      root.currentFile = name
-      root.fileName = name.replace(/\.png$/, "")
-      root.savedRev = r
-      root.writeState()
+      if (ok && !quiet) root.say("Saved " + name)
+      if (ok && doc === root.docId) {
+        root.currentFile = name
+        root.fileName = name.replace(/\.png$/, "")
+        root.savedRev = r
+        root.writeState()
+      }
+      if (done) done(ok)
     })
   }
 
@@ -601,17 +609,27 @@ Item {
     say("Type a name, enter saves, esc cancels")
   }
 
-  // Never asks: a typed name that belongs to another file falls back to
-  // this image's own file or a fresh timestamp name.
-  function autosave() {
+  // Never asks. done(ok), optional, runs once the image is on disk or
+  // nothing needed saving.
+  function autosave(done) {
+    done = done || function() {}
     commitSelection()
-    if (rev === savedRev || Pixels.isEmpty(img)) return
-    var bytes = Png.encode(img), r = rev
-    var typed = Pixels.cleanName(fileName)
-    var fallback = currentFile || Pixels.timestampName(new Date())
-    if (!typed || typed === currentFile) { writeImage(currentFile || typed || fallback, bytes, r, true); return }
-    exists(typed, function(yes) { root.writeImage(yes ? fallback : typed, bytes, r, true) })
+    if (rev === savedRev || Pixels.isEmpty(img)) { done(true); return }
+    var bytes = Png.encode(img), r = rev, cur = currentFile
+    var typed = Pixels.cleanName(fileName), stamp = Pixels.timestampName(new Date())
+    var write = function(yes) { root.writeImage(Pixels.autosaveName(typed, cur, yes, stamp), bytes, r, true, done) }
+    if (typed && typed !== cur) exists(typed, write)
+    else write(false)
   }
+
+  // Saves edits that would otherwise only reach disk on close, so a shell
+  // restart or crash loses at most this interval.
+  Timer {
+    id: autosaveTimer
+    interval: 30000
+    onTriggered: if (root.drag || root.sel) restart(); else root.autosave()
+  }
+  onRevChanged: autosaveTimer.restart()
 
   function resetDocument(next) {
     docId++
@@ -624,14 +642,16 @@ Item {
   }
 
   function newImage() {
-    autosave()
-    resetDocument(Pixels.create(imgW, imgH))
-    setPalette(themeColors())
-    selectSlot(0)
-    currentFile = ""
-    fileName = ""
-    writeState()
-    say("New image")
+    autosave(function(ok) {
+      if (!ok) { root.say("Autosave failed, kept this image"); return }
+      root.resetDocument(Pixels.create(root.imgW, root.imgH))
+      root.setPalette(root.themeColors())
+      root.selectSlot(0)
+      root.currentFile = ""
+      root.fileName = ""
+      root.writeState()
+      root.say("New image")
+    })
   }
 
   function openFiles() {
@@ -642,7 +662,13 @@ Item {
   // Restoring keeps the saved palette and fails silently.
   function loadFile(name, restoring) {
     closeDialog()
-    autosave()
+    autosave(function(saved) {
+      if (!saved) root.say("Autosave failed, kept this image")
+      else root.readFile(name, restoring)
+    })
+  }
+
+  function readFile(name, restoring) {
     runJob(["base64", "-w0", dir + "/" + name], "", function(ok, out) {
       if (!ok) { if (!restoring) root.say("Could not read " + name); return }
       var dec
@@ -676,7 +702,7 @@ Item {
   function exportKey(event) {
     if (event.key === Qt.Key_Escape) closeDialog()
     else if (event.key === Qt.Key_Left || event.text === "h") exportIndex = Math.max(0, exportIndex - 1)
-    else if (event.key === Qt.Key_Right || event.text === "l") exportIndex = Math.min(2, exportIndex + 1)
+    else if (event.key === Qt.Key_Right || event.text === "l") exportIndex = Math.min(exportScales.length - 1, exportIndex + 1)
     else if (event.key === Qt.Key_Up || event.text === "k") exportBg = (exportBg + exportBgs.length - 1) % exportBgs.length
     else if (event.key === Qt.Key_Down || event.text === "j") exportBg = (exportBg + 1) % exportBgs.length
     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) exportImage(exportScales[exportIndex])
@@ -851,7 +877,7 @@ Item {
               spacing: Style.spacing.xs
 
               Repeater {
-                model: [16, 32, 64, 128]
+                model: Pixels.SIZES
                 IconButton {
                   required property int modelData
                   text: String(modelData)
@@ -863,7 +889,7 @@ Item {
               }
               IconButton {
                 text: "…"
-                selected: !(root.imgW === root.imgH && [16, 32, 64, 128].indexOf(root.imgW) >= 0)
+                selected: !(root.imgW === root.imgH && Pixels.SIZES.indexOf(root.imgW) >= 0)
                 tooltipText: "Custom size (max " + Pixels.MAX_SIDE + "x" + Pixels.MAX_SIDE + ")"
                 onClicked: { widthField.text = String(root.imgW); heightField.text = String(root.imgH); root.dialog = "size"; widthField.forceActiveFocus() }
               }

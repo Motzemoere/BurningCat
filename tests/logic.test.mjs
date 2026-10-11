@@ -16,7 +16,7 @@ const load = (file, names) => {
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
   "fill", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
-  "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "exportName", "History",
+  "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "autosaveName", "exportName", "History",
   "ACTIONS", "bindable", "defaultBindings", "rebind", "bindings", "overridesOf", "actionFor", "keyLabel"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
 
@@ -144,6 +144,10 @@ group("files")
 t("timestamp", P.timestampName(new Date(2026, 9, 10, 14, 30, 5)) === "2026-10-10_14-30-05.png")
 t("cleanName adds .png", P.cleanName(" cat ") === "cat.png" && P.cleanName("cat.PNG") === "cat.png")
 t("cleanName refuses paths", P.cleanName("../x") === "" && P.cleanName("a/b") === "" && P.cleanName(".hidden") === "" && P.cleanName("") === "")
+t("autosave: no name uses own file, else timestamp", P.autosaveName("", "a.png", false, "T.png") === "a.png" && P.autosaveName("", "", false, "T.png") === "T.png")
+t("autosave: own name", P.autosaveName("a.png", "a.png", true, "T.png") === "a.png")
+t("autosave: new free name", P.autosaveName("b.png", "a.png", false, "T.png") === "b.png")
+t("autosave: never another existing file", P.autosaveName("b.png", "a.png", true, "T.png") === "a.png" && P.autosaveName("b.png", "", true, "T.png") === "T.png")
 t("exportName", P.exportName("cat.png", 8) === "cat_8x.png")
 
 group("history")
@@ -155,6 +159,9 @@ group("history")
   t("undo returns previous incl. size", back.w === 1 && back.data[0] === 1)
   t("redo returns next", h.forward(back).w === 2)
   t("nothing to redo after push", (h.push(a), h.forward(a) === null))
+  const hb = new P.History(), huge = P.create(512, 512)
+  for (let i = 0; i < 50; i++) hb.push(huge)
+  t("512x512 history capped to 32 MB", hb.undo.length === 32)
 }
 
 group("png")
@@ -177,6 +184,9 @@ group("png")
   const big = Z.decode(Z.encode(art, 4))
   t("4x export nearest-neighbour", big.w === 12 && big.h === 8 && P.get(big, 3, 3) === RED && P.get(big, 4, 0) === 0 && P.get(big, 11, 7) === 0 && P.get(big, 4, 4) === 0xff123456)
   t("decode refuses too large", (() => { try { Z.decode(Z.encode(P.create(300, 2)), 256); return false } catch (e) { return /300x2/.test(e.message) } })())
+  const ours16 = Z.encode(art, 16), idat = Buffer.from(ours16).indexOf("IDAT")
+  const idatLen = Buffer.from(ours16).readUInt32BE(idat - 4)
+  t("16x export passes zlib checksum", inflateSync(Buffer.from(ours16.subarray(idat + 4, idat + 4 + idatLen))).length === 32 * (48 * 4 + 1))
   t("decode refuses non-png", (() => { try { Z.decode(new Uint8Array(20)); return false } catch (e) { return /Not a PNG/.test(e.message) } })())
 }
 
@@ -207,6 +217,10 @@ group("png from other encoders")
   const g1 = png(9, 1, 1, 0, [0, 0b10000000, 0b10000000])
   const g = Z.decode(g1).data
   t("1-bit gray", g[0] === 0xffffffff && g[1] === 0xff000000 && g[8] === 0xffffffff)
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(1, 0); ihdr.writeUInt32BE(1, 4); ihdr[8] = 8; ihdr[9] = 6
+  const bomb = new Uint8Array(Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(Buffer.alloc(1 << 20))), chunk("IEND", Buffer.alloc(0))]))
+  t("inflate stops at the size the header allows", (() => { try { Z.decode(bomb); return false } catch (e) { return /too large/.test(e.message) } })())
 }
 
 group("flatten")

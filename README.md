@@ -8,8 +8,8 @@ Hyprland window, and it restyles itself live whenever you change the Omarchy the
 
 ## Features
 
-- Canvas from 16x16 up to 512x512, with zoom, grid, and resize that pads or crops
-- Pen (1x1 to 8x8), eraser, eyedropper, color fill, and pixel-perfect shapes:
+- Canvas from 1x1 up to 512x512, with zoom, grid, and resize that pads or crops
+- Pen (1x1 to 8x8), eraser, eyedropper, color fill, and pixel shapes:
   line, rectangle, circle, triangle, hexagon, octagon
 - Selection: move, copy, cut, paste, flip, rotate. Copy and paste use the system
   clipboard, so you can paste images to and from other apps
@@ -38,22 +38,12 @@ o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pix
 
 ## Usage
 
-Press the keybind and draw. The last image reopens automatically, and the
+Press `shift+k` to open and change keybindings.
+
+Set up your canvas, pick a tool and draw. The last image reopens automatically, and the
 current one is saved when you close the window.
 
-| Key | Action | Key | Action |
-|---|---|---|---|
-| arrows | move cursor | `space` | draw / set point |
-| `p` | pen (again: bigger) | `c` | erase |
-| `i` | eyedropper | `b` | color fill |
-| `v` | select | `l` `r` `t` | line, rectangle, triangle |
-| `1`-`0` | pick color | `a` | new color |
-| `ctrl+z` / `ctrl+y` | undo / redo | `+` / `-` | zoom |
-| `s` / `o` / `n` | save / load / new | `e` | export |
-| `shift+k` | keybinding menu | `q` | quit |
-
-The mouse works too: left click draws, right click erases. The full list of
-keybindings is in [features.md](features.md#keybindings).
+The mouse works too: left click draws, right click erases.
 
 ## Files
 
@@ -73,5 +63,11 @@ node tests/logic.test.mjs
 
 The shell caches compiled QML, so run `omarchy-restart-shell` to load edits.
 The UI is QML; the drawing logic lives in plain JavaScript (`Pixels.js`,
-`Png.js`) so it can be tested with `node`. [features.md](features.md) is the
-feature spec, and design decisions are in [docs/adr/](docs/adr/).
+`Png.js`) so it can be tested with `node`. Design decisions are in
+[docs/adr/](docs/adr/).
+
+## Next ideas
+
+- Open multiple images, select pixels from one and paste them into another
+- Align selected pixels to the page: center, horizontally, vertically
+- Multiple selections: select several pixel groups and align them (horizontally, vertically, evenly spaced, etc.)
