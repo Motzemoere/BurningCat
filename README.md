@@ -1,6 +1,6 @@
-# PixelArt
+# BurningCat
 
-<p align="center"><img src="pixelart_demo.png" alt="PixelArt editor" width="500"></p>
+<p align="center"><img src="burningcat_demo.png" alt="BurningCat editor" width="500"></p>
 
 A small, keyboard-driven pixel art editor for [Omarchy](https://omarchy.org).
 It runs as an Omarchy shell plugin: a keybind opens it as a normal tiled
@@ -27,13 +27,13 @@ No layers, animation, symmetry, anti-aliasing or filled shapes, by design.
 Requires Omarchy 4, `wl-clipboard` (copy and paste) and `hyprpicker` (screen pipette).
 
 ```bash
-omarchy plugin add https://github.com/Motzemoere/PixelArt.git --enable
+omarchy plugin add https://github.com/Motzemoere/BurningCat.git --enable
 ```
 
 Then bind a key to open and close it in `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + ALT + P", "PixelArt", "omarchy-shell shell toggle motzemoere.pixelart")
+o.bind("SUPER + ALT + P", "BurningCat", "omarchy-shell shell toggle motzemoere.burningcat")
 ```
 
 ## Usage
@@ -47,17 +47,17 @@ The mouse works too: left click draws, right click erases.
 
 ## Files
 
-- Images: `~/Pictures/PixelArt/*.png`
-- Exports: `~/Pictures/PixelArt/Export/`
-- Editor state (last file, palette, size, keybindings): `~/.local/state/omarchy/pixelart.json`
+- Images: `~/Pictures/BurningCat/*.png`
+- Exports: `~/Pictures/BurningCat/Export/`
+- Editor state (last file, palette, size, keybindings): `~/.local/state/omarchy/burningcat.json`
 
 ## Development
 
 Link the checkout as a plugin and run the logic tests:
 
 ```bash
-ln -s "$PWD" ~/.config/omarchy/plugins/motzemoere.pixelart
-omarchy plugin enable motzemoere.pixelart
+ln -s "$PWD" ~/.config/omarchy/plugins/motzemoere.burningcat
+omarchy plugin enable motzemoere.burningcat
 node tests/logic.test.mjs
 ```
 

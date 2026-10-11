@@ -32,12 +32,12 @@ Item {
 
   // User-initiated close (q, esc, killactive): tell the host so toggle stays in sync.
   function requestClose() {
-    if (shell && typeof shell.hide === "function") shell.hide("motzemoere.pixelart")
+    if (shell && typeof shell.hide === "function") shell.hide("motzemoere.burningcat")
     else close()
   }
 
   readonly property string home: Quickshell.env("HOME")
-  readonly property string dir: home + "/Pictures/PixelArt"
+  readonly property string dir: home + "/Pictures/BurningCat"
 
   // ------------------------------------------------------------ editor state
   property var img: Pixels.create(32, 32)
@@ -741,7 +741,7 @@ Item {
   // ------------------------------------------------------------ state file
   FileView {
     id: stateFile
-    path: root.home + "/.local/state/omarchy/pixelart.json"
+    path: root.home + "/.local/state/omarchy/burningcat.json"
     blockLoading: true
     atomicWrites: true
     printErrors: false
@@ -815,7 +815,7 @@ Item {
     if (!runner.streamDone || !runner.exitDone) return
     var j = jobs.shift()
     runner.busy = false
-    try { j.done(runner.exitCode === 0, out.text || "") } catch (e) { console.warn("pixelart:", e) }
+    try { j.done(runner.exitCode === 0, out.text || "") } catch (e) { console.warn("burningcat:", e) }
     Qt.callLater(startNext)
   }
 
@@ -859,7 +859,7 @@ Item {
 
   FloatingWindow {
     id: window
-    title: "PixelArt"
+    title: "BurningCat"
     color: Color.background
     implicitWidth: 900
     implicitHeight: 760

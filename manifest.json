@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "motzemoere.pixelart",
-  "name": "PixelArt",
+  "id": "motzemoere.burningcat",
+  "name": "BurningCat",
   "version": "0.1.0",
   "author": "motzemoere",
   "description": "Pixel art editor in a tiled window, styled by the Omarchy theme",
@@ -9,7 +9,7 @@
     "panel"
   ],
   "entryPoints": {
-    "panel": "PixelArt.qml"
+    "panel": "BurningCat.qml"
   },
   "keepLoaded": true
 }
