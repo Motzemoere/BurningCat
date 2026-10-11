@@ -65,7 +65,8 @@ function huffman(lengths) {
   return { counts: counts, symbols: symbols }
 }
 
-function inflate(src) {
+// maxOut caps the output size, so a crafted stream cannot exhaust memory.
+function inflate(src, maxOut) {
   if (src.length < 2 || (src[0] & 15) !== 8 || ((src[0] << 8) | src[1]) % 31 !== 0)
     throw new Error("Not a zlib stream")
   var pos = 2, bitBuf = 0, bitCnt = 0
@@ -73,6 +74,7 @@ function inflate(src) {
 
   function ensure(n) {
     if (o + n <= out.length) return
+    if (maxOut && o + n > maxOut) throw new Error("Image data too large")
     var bigger = new Uint8Array(Math.max(out.length * 2, o + n))
     bigger.set(out.subarray(0, o))
     out = bigger
@@ -247,6 +249,14 @@ Deflater.prototype.write = function(bytes) {
   this.adlerB = b % 65521
 }
 
+// n zero bytes without a per-byte loop: zeros leave adlerA unchanged and add
+// adlerA to adlerB n times.
+Deflater.prototype.zeros = function(n) {
+  if (n && this.prev !== 0) { this.write([0]); n-- }
+  this.run += n
+  this.adlerB = (this.adlerB + this.adlerA * n) % 65521
+}
+
 Deflater.prototype.finish = function() {
   this.flushRun()
   this.literal(256)
@@ -282,8 +292,6 @@ function encode(img, scale) {
                           H >>> 24, (H >>> 16) & 255, (H >>> 8) & 255, H & 255, 8, 6, 0, 0, 0])
   var z = new Deflater()
   var row = new Uint8Array(stride), filtered = new Uint8Array(stride + 1)
-  var upRow = new Uint8Array(stride + 1)
-  upRow[0] = 2  // repeated rows: Up filter, all zeros
   for (var y = 0; y < img.h; y++) {
     for (var x = 0; x < img.w; x++) {
       var c = img.data[y * img.w + x]
@@ -295,7 +303,7 @@ function encode(img, scale) {
     filtered[0] = 1  // Sub
     for (var i = 0; i < stride; i++) filtered[i + 1] = (row[i] - (i >= 4 ? row[i - 4] : 0)) & 255
     z.write(filtered)
-    for (r = 1; r < k; r++) z.write(upRow)
+    for (r = 1; r < k; r++) { z.write([2]); z.zeros(stride) }  // repeated rows: Up filter, all zeros
   }
   pushChunk(arr, "IDAT", z.finish())
   pushChunk(arr, "IEND", [])
@@ -338,10 +346,10 @@ function decode(bytes, maxSide) {
 
   var z = new Uint8Array(idatLen), zo = 0
   for (i = 0; i < idat.length; i++) { z.set(idat[i], zo); zo += idat[i].length }
-  var raw = inflate(z)
+  var stride = (w * channels * depth + 7) >> 3
+  var raw = inflate(z, h * (stride + 1))
 
   var bpp = Math.max(1, (channels * depth) >> 3)
-  var stride = (w * channels * depth + 7) >> 3
   if (raw.length < h * (stride + 1)) throw new Error("Truncated image data")
   var cur = new Uint8Array(stride), prev = new Uint8Array(stride)
   var out = new Uint32Array(w * h)
