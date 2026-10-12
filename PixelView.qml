@@ -4,8 +4,10 @@ import qs.Commons
 import "Pixels.js" as Pixels
 
 // Scrollable, zoomable view of the image. Every layer is a Canvas with one
-// canvas pixel per image pixel, scaled up by `px` without smoothing, so the
-// drawing stays DPR-independent and repaints only touch changed pixels.
+// canvas pixel per image pixel, scaled up by `px` without smoothing, so repaints
+// only touch changed pixels. Each layer renders at exactly one texel
+// per pixel; at a fractional DPR (e.g. 1.5) the Canvas texture would split
+// pixels across texels and show seams.
 // Canvas.Image keeps pixels across partial repaints and window remaps, which
 // the default double-buffered framebuffer target does not.
 Item {
@@ -111,6 +113,10 @@ Item {
         transformOrigin: Item.TopLeft
         smooth: false
         renderTarget: Canvas.Image
+        antialiasing: false
+        layer.enabled: true
+        layer.textureSize: Qt.size(width, height)
+        layer.smooth: false
         property color light: Util.alpha(view.foreground, 0.16)
         property color dark: Util.alpha(view.foreground, 0.06)
         onLightChanged: requestPaint()
@@ -138,6 +144,10 @@ Item {
         transformOrigin: Item.TopLeft
         smooth: false
         renderTarget: Canvas.Image
+        antialiasing: false
+        layer.enabled: true
+        layer.textureSize: Qt.size(width, height)
+        layer.smooth: false
         onWidthChanged: view.repaintAll()
         onHeightChanged: view.repaintAll()
         onPaint: function(region) {
@@ -164,6 +174,10 @@ Item {
         transformOrigin: Item.TopLeft
         smooth: false
         renderTarget: Canvas.Image
+        antialiasing: false
+        layer.enabled: true
+        layer.textureSize: Qt.size(width, height)
+        layer.smooth: false
         onPaint: {
           var ctx = getContext("2d")
           ctx.clearRect(0, 0, width, height)
@@ -184,6 +198,10 @@ Item {
         transformOrigin: Item.TopLeft
         smooth: false
         renderTarget: Canvas.Image
+        antialiasing: false
+        layer.enabled: true
+        layer.textureSize: Qt.size(width, height)
+        layer.smooth: false
         onPaint: {
           var ctx = getContext("2d")
           ctx.clearRect(0, 0, width, height)
