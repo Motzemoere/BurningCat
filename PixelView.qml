@@ -22,7 +22,7 @@ Item {
   property int cursorX: 0
   property int cursorY: 0
   property int cursorSize: 1     // cursor outline side in pixels
-  property var sel: null        // {x, y, w, h, buf}; buf set while the selection floats
+  property var sel: null        // {x, y, w, h, buf, mask}; buf set while the selection floats
   property var preview: []      // [{x, y}] of a shape in progress
   property string previewColor: "#ffffff"
   property color foreground: Color.foreground
@@ -215,7 +215,7 @@ Item {
       }
 
       Rectangle {
-        visible: !!view.sel
+        visible: !!view.sel && !view.sel.mask
         x: view.sel ? view.sel.x * view.px : 0
         y: view.sel ? view.sel.y * view.px : 0
         width: view.sel ? view.sel.w * view.px : 0
@@ -291,6 +291,37 @@ Item {
       var left = ox + x0 * view.px, right = ox + x1 * view.px
       for (var x = x0; x <= x1; x++) ctx.fillRect(Math.round(ox + x * view.px), top, 1, bottom - top)
       for (var y = y0; y <= y1; y++) ctx.fillRect(left, Math.round(oy + y * view.px), right - left, 1)
+    }
+  }
+
+  // Masked selection outline, in viewport coordinates like the grid.
+  Canvas {
+    anchors.fill: parent
+    visible: !!view.sel && !!view.sel.mask
+    readonly property var deps: [view.sel, view.px, flick.contentX, flick.contentY, content.x, content.y, width, height, view.accent]
+    onDepsChanged: requestPaint()
+    onPaint: {
+      var ctx = getContext("2d"), s = view.sel, p = view.px
+      ctx.clearRect(0, 0, width, height)
+      if (!visible) return
+      var ox = content.x - flick.contentX, oy = content.y - flick.contentY
+      var x0 = Math.max(s.x, Math.floor(-ox / p)), x1 = Math.min(s.x + s.w, Math.ceil((width - ox) / p))
+      var y0 = Math.max(s.y, Math.floor(-oy / p)), y1 = Math.min(s.y + s.h, Math.ceil((height - oy) / p))
+      // Inner line first so the accent wins where edges meet at concave corners.
+      var lines = [[Color.background, 1], [view.accent, 0]]
+      for (var l = 0; l < 2; l++) {
+        ctx.fillStyle = lines[l][0]
+        var d = lines[l][1]
+        for (var y = y0; y < y1; y++)
+          for (var x = x0; x < x1; x++) {
+            if (!Pixels.selected(s, x, y)) continue
+            var sx = Math.round(ox + x * p), sy = Math.round(oy + y * p)
+            if (!Pixels.selected(s, x - 1, y)) ctx.fillRect(sx + d, sy, 1, p)
+            if (!Pixels.selected(s, x + 1, y)) ctx.fillRect(sx + p - 1 - d, sy, 1, p)
+            if (!Pixels.selected(s, x, y - 1)) ctx.fillRect(sx, sy + d, p, 1)
+            if (!Pixels.selected(s, x, y + 1)) ctx.fillRect(sx, sy + p - 1 - d, p, 1)
+          }
+      }
     }
   }
 }

@@ -56,7 +56,7 @@ Item {
   property int cursorX: 0
   property int cursorY: 0
   property var startPt: null     // first corner of a shape or selection in progress
-  property var sel: null         // {x, y, w, h, buf}; buf is set while it floats
+  property var sel: null         // {x, y, w, h, buf, mask}; buf is set while it floats, mask as in Pixels.selected
   property var preview: []
   property var drag: null        // mouse gesture in progress
   property string fileName: ""   // the editable field, without .png
@@ -81,7 +81,7 @@ Item {
   property int refCursorX: 0
   property int refCursorY: 0
   property var refStartPt: null
-  property var refSel: null      // {x, y, w, h, buf: null}; never floats
+  property var refSel: null      // {x, y, w, h, buf: null, mask}; never floats
   property bool onRef: false     // keys go to the Reference
   property bool pickingRef: false // the file list opens a Reference
 
@@ -91,6 +91,7 @@ Item {
     { id: "pixel", icon: 0xf03eb, label: "Pixel" },
     { id: "eyedropper", icon: 0xf020a, label: "Eyedropper" },
     { id: "select", icon: 0xf0489, label: "Select" },
+    { id: "wand", icon: 0xf0068, label: "Magic wand" },
     { id: "fill", icon: 0xf0266, label: "Color pot" },
     { id: "line", icon: 0xf055e, label: "Line" },
     { id: "rectangle", icon: 0xf0763, label: "Rectangle" },
@@ -234,7 +235,22 @@ Item {
     return r ? { x: r.x, y: r.y, w: r.w, h: r.h, buf: null } : null
   }
 
-  function inSel(x, y) { return sel && x >= sel.x && y >= sel.y && x < sel.x + sel.w && y < sel.y + sel.h }
+  function inSel(x, y) { return Pixels.selected(sel, x, y) }
+
+  // s with the Object at (x, y) of src, or that Object alone unless add.
+  function wandSel(s, src, x, y, add) {
+    if (add && Pixels.selected(s, x, y)) return s
+    var o = Pixels.object(src, x, y)
+    if (!o) { say("Nothing to select"); return add ? s : null }
+    if (add && s) o = Pixels.union(s, o)
+    o.buf = null
+    return o
+  }
+
+  function wandAt(x, y, add) {
+    if (!add || (sel && sel.buf)) commitSelection()
+    sel = wandSel(sel, img, x, y, add)
+  }
 
   // Cut the selected pixels out so they float above the image.
   function lift() {
@@ -243,7 +259,7 @@ Item {
     var buf = Pixels.extract(img, sel)
     Pixels.clear(img, sel)
     view.repaintAll()
-    sel = { x: sel.x, y: sel.y, w: sel.w, h: sel.h, buf: buf }
+    sel = { x: sel.x, y: sel.y, w: sel.w, h: sel.h, buf: buf, mask: sel.mask }
   }
 
   function commitSelection() {
@@ -258,14 +274,14 @@ Item {
   function moveSel(dx, dy) {
     if (!sel) return
     lift()
-    sel = { x: sel.x + dx, y: sel.y + dy, w: sel.w, h: sel.h, buf: sel.buf }
+    sel = { x: sel.x + dx, y: sel.y + dy, w: sel.w, h: sel.h, buf: sel.buf, mask: sel.mask }
   }
 
   function transformSel(fn) {
     if (!sel) return
     lift()
     var b = fn(sel.buf)
-    sel = { x: sel.x, y: sel.y, w: b.w, h: b.h, buf: b }
+    sel = { x: sel.x, y: sel.y, w: b.w, h: b.h, buf: b, mask: sel.mask ? fn(sel.mask) : null }
   }
 
   function deleteSel() {
@@ -368,6 +384,7 @@ Item {
     if (!onRef) switchSide()
     setRefCursor(x, y)
     if (tool === "eyedropper" || (mods & Qt.AltModifier)) { pick(refCursorX, refCursorY, refImg); return }
+    if (tool === "wand") { refSel = wandSel(refSel, refImg, refCursorX, refCursorY, mods & Qt.ShiftModifier); return }
     refStartPt = { x: refCursorX, y: refCursorY }
     refSel = rectSel(refStartPt, refStartPt, refImg)
   }
@@ -390,6 +407,7 @@ Item {
     if (k === Qt.Key_Space) {
       var p = { x: refCursorX, y: refCursorY }
       if (tool === "eyedropper") pick(p.x, p.y, refImg)
+      else if (tool === "wand") refSel = wandSel(refSel, refImg, p.x, p.y, event.modifiers & Qt.ShiftModifier)
       else if (refStartPt) refStartPt = null
       else { refStartPt = p; refSel = rectSel(p, p, refImg) }
       return true
@@ -455,9 +473,10 @@ Item {
   }
 
   // ------------------------------------------------------------ input
-  function activate(keepRatio) {
+  function activate(keepRatio, add) {
     var p = { x: cursorX, y: cursorY }
-    if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([p], penSize), currentInt()) }
+    if (tool === "wand") wandAt(p.x, p.y, add)
+    else if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([p], penSize), currentInt()) }
     else if (tool === "eyedropper") pick(p.x, p.y)
     else if (tool === "fill") fillAt(p.x, p.y, currentInt())
     else if (!startPt) {
@@ -487,7 +506,8 @@ Item {
     if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([{ x: x, y: y }], penSize), erase ? 0 : currentInt()); drag.erase = erase }
     else if (tool === "eyedropper") pick(x, y)
     else if (tool === "fill") fillAt(x, y, erase ? 0 : currentInt())
-    else if (tool === "select" && inSel(x, y)) { lift(); drag.move = true }
+    else if ((tool === "select" || (tool === "wand" && !(mods & Qt.ShiftModifier))) && inSel(x, y)) { lift(); drag.move = true }
+    else if (tool === "wand") wandAt(x, y, mods & Qt.ShiftModifier)
     else {
       commitSelection()
       startPt = { x: x, y: y }
@@ -548,7 +568,7 @@ Item {
       else moveCursor(dx, dy)
       return true
     }
-    if (k === Qt.Key_Space) { activate(ctrl); return true }
+    if (k === Qt.Key_Space) { activate(ctrl, shift); return true }
     if (k === Qt.Key_Delete || k === Qt.Key_Backspace) { erase(); return true }
     if (k === Qt.Key_Escape) { if (bgMenu) bgMenu = false; else cancel(); return true }
     if (ctrl) return false
@@ -1098,7 +1118,7 @@ Item {
                 }
               }
               Repeater {
-                model: root.tool === "select" && !root.bgMenu ? [["flipH", "↔", "Flip horizontal"], ["flipV", "↕", "Flip vertical"],
+                model: (root.tool === "select" || root.tool === "wand") && !root.bgMenu ? [["flipH", "↔", "Flip horizontal"], ["flipV", "↕", "Flip vertical"],
                                                  ["rotateCcw", "⟲", "Rotate counter-clockwise"], ["rotateCw", "⟳", "Rotate clockwise"]] : []
                 IconButton {
                   required property var modelData

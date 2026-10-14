@@ -118,6 +118,62 @@ function fill(img, x, y, c) {
   return n
 }
 
+// The Object under (x, y): the 8-connected run of its color plus every pixel
+// that run encloses. Returns {x, y, w, h, mask} with mask a w*h image of 0/1,
+// or null on a transparent pixel or outside the image.
+function object(img, x, y) {
+  if (!inside(img, x, y)) return null
+  var c = get(img, x, y)
+  if (c === 0) return null
+  var run = new Uint8Array(img.w * img.h), stack = [y * img.w + x]
+  var x0 = x, y0 = y, x1 = x, y1 = y
+  while (stack.length) {
+    var i = stack.pop()
+    if (run[i] || img.data[i] !== c) continue
+    run[i] = 1
+    var px = i % img.w, py = (i - px) / img.w
+    x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py)
+    for (var dy = -1; dy <= 1; dy++)
+      for (var dx = -1; dx <= 1; dx++)
+        if (inside(img, px + dx, py + dy)) stack.push(i + dy * img.w + dx)
+  }
+  // Flood the outside from a 1-pixel frame around the bounding box, 4-connected:
+  // an 8-connected outline only closes against 4-connected leaks.
+  var w = x1 - x0 + 1, h = y1 - y0 + 1, fw = w + 2, fh = h + 2
+  var out = new Uint8Array(fw * fh), todo = [0]
+  var isRun = function(fx, fy) { return fx > 0 && fy > 0 && fx <= w && fy <= h && run[(y0 + fy - 1) * img.w + x0 + fx - 1] === 1 }
+  while (todo.length) {
+    var j = todo.pop(), fx = j % fw, fy = (j - fx) / fw
+    if (out[j] || isRun(fx, fy)) continue
+    out[j] = 1
+    if (fx > 0) todo.push(j - 1)
+    if (fx < fw - 1) todo.push(j + 1)
+    if (fy > 0) todo.push(j - fw)
+    if (fy < fh - 1) todo.push(j + fw)
+  }
+  var mask = create(w, h)
+  for (var my = 0; my < h; my++)
+    for (var mx = 0; mx < w; mx++) mask.data[my * w + mx] = out[(my + 1) * fw + mx + 1] ? 0 : 1
+  return { x: x0, y: y0, w: w, h: h, mask: mask }
+}
+
+// Is (x, y) in selection s? A selection without a mask is its whole rect.
+function selected(s, x, y) {
+  if (!s || x < s.x || y < s.y || x >= s.x + s.w || y >= s.y + s.h) return false
+  return !s.mask || s.mask.data[(y - s.y) * s.w + x - s.x] === 1
+}
+
+// Union of two selections as {x, y, w, h, mask}.
+function union(a, b) {
+  var x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
+  var w = Math.max(a.x + a.w, b.x + b.w) - x, h = Math.max(a.y + a.h, b.y + b.h) - y
+  var mask = create(w, h)
+  for (var my = 0; my < h; my++)
+    for (var mx = 0; mx < w; mx++)
+      if (selected(a, x + mx, y + my) || selected(b, x + mx, y + my)) mask.data[my * w + mx] = 1
+  return { x: x, y: y, w: w, h: h, mask: mask }
+}
+
 // Bresenham line, both endpoints included.
 function line(x0, y0, x1, y1) {
   var pts = [], dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0)
@@ -237,16 +293,18 @@ function clipRect(img, r) {
   return w > 0 && h > 0 ? { x: x, y: y, w: w, h: h } : null
 }
 
+// r may carry a mask (see selected); unselected pixels come out transparent.
 function extract(img, r) {
   var out = create(r.w, r.h)
   for (var y = 0; y < r.h; y++)
-    for (var x = 0; x < r.w; x++) out.data[y * r.w + x] = get(img, r.x + x, r.y + y)
+    for (var x = 0; x < r.w; x++)
+      if (selected(r, r.x + x, r.y + y)) out.data[y * r.w + x] = get(img, r.x + x, r.y + y)
   return out
 }
 
 function clear(img, r) {
   for (var y = r.y; y < r.y + r.h; y++)
-    for (var x = r.x; x < r.x + r.w; x++) set(img, x, y, 0)
+    for (var x = r.x; x < r.x + r.w; x++) if (selected(r, x, y)) set(img, x, y, 0)
 }
 
 // Draw buf onto img at (ox, oy); transparent buf pixels leave img untouched.
@@ -381,7 +439,7 @@ function exportName(name, scale) { return String(name).replace(/\.png$/i, "") + 
 // Rebindable single-key actions as [id, label, default key]. A key is the
 // typed character (event.text), so an uppercase letter means shift+letter.
 var ACTIONS = [
-  ["pixel", "Pixel", "p"], ["eyedropper", "Eyedropper", "i"], ["select", "Select", "v"], ["fill", "Color pot", "b"],
+  ["pixel", "Pixel", "p"], ["eyedropper", "Eyedropper", "i"], ["select", "Select", "v"], ["wand", "Magic wand", "m"], ["fill", "Color pot", "b"],
   ["line", "Line", "l"], ["rectangle", "Rectangle", "r"], ["circle", "Circle", "C"], ["triangle", "Triangle", "t"],
   ["hexagon", "Hexagon", "h"], ["octagon", "Octagon", "O"],
   ["erase", "Remove pixel / selection", "c"],

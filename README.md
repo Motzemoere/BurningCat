@@ -14,6 +14,8 @@ It is inspired by MS Paint.
   line, rectangle, circle, triangle, hexagon, octagon
 - Selection: move, copy, cut, paste, flip, rotate. Copy and paste use the system
   clipboard, so you can paste images to and from other apps
+- Magic wand: click an outline to select it and everything inside it;
+  shift+click adds more objects
 - Reference: open a second image read-only beside the canvas (`shift+r`),
   switch sides with `w`, and select, copy and pick colors from it
 - 22-color palette. A new image starts with the theme's colors, and a loaded
@@ -81,7 +83,6 @@ The UI is QML; the drawing logic lives in plain JavaScript (`Pixels.js`,
 
 - Upscaling algorithms: choose the upscaling factor and add custom algorithms,
   e.g. Sierpiński (turn one pixel into a 3x3 block and leave the middle pixel empty)
-- Freeform selection tool: detects the outline of the selected object, e.g. by color
 - Align selected pixels to the page: center, horizontally, vertically
 - Multiple selections: select several pixel groups and align them (horizontally, vertically, evenly spaced, etc.)
 

@@ -15,7 +15,7 @@ const load = (file, names) => {
   return G
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
-  "fill", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
+  "fill", "object", "selected", "union", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
   "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "autosaveName", "exportName", "History",
   "ACTIONS", "bindable", "defaultBindings", "rebind", "bindings", "overridesOf", "actionFor", "keyLabel"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
@@ -55,6 +55,28 @@ group("fill")
   t("same colour is a no-op", P.fill(i, 1, 1, BLUE) === 0)
   const j = P.create(16, 16)
   t("fills whole empty canvas", P.fill(j, 5, 5, RED) === 256)
+}
+
+group("magic wand")
+{
+  const R = RED, B = BLUE
+  // Diamond outline with diagonal steps, a blue pixel and a transparent pixel inside.
+  const d = img(5, 5, [0, 0, R, 0, 0,  0, R, B, R, 0,  R, 0, B, 0, R,  0, R, B, R, 0,  0, 0, R, 0, 0])
+  const o = P.object(d, 2, 0)
+  t("outline joins at corners", o && o.x === 0 && o.y === 0 && o.w === 5 && o.h === 5)
+  t("encloses other colors and transparency", P.selected(o, 2, 2) && P.selected(o, 1, 2))
+  t("leaves the outside out", !P.selected(o, 0, 0) && !P.selected(o, 4, 4))
+  t("clicking inside selects from that color", (() => { const e = P.object(d, 2, 1); return e.x === 2 && e.y === 1 && e.w === 1 && e.h === 3 })())
+  t("transparent selects nothing", P.object(d, 0, 0) === null && P.object(d, 9, 9) === null)
+  const gap = img(3, 3, [R, R, R,  R, 0, 0,  R, R, R])
+  t("an edge gap leaks", !P.selected(P.object(gap, 0, 0), 1, 1))
+  const u = P.union({ x: 0, y: 0, w: 1, h: 1 }, P.object(d, 2, 1))
+  t("union keeps both and nothing between", P.selected(u, 0, 0) && P.selected(u, 2, 3) && !P.selected(u, 1, 1))
+  const e = P.extract(d, o)
+  t("masked extract drops unselected pixels", e.data[0] === 0 && e.data[2] === R && e.data[12] === B)
+  const c = img(5, 5, d.data); c.data[0] = B
+  P.clear(c, o)
+  t("masked clear keeps unselected pixels", P.get(c, 0, 0) === B && P.isEmpty(c) === false && P.get(c, 2, 2) === 0)
 }
 
 group("shapes")
