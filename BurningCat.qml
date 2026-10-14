@@ -1281,6 +1281,7 @@ Item {
             IconButton { glyph: 0xf0cfb; tooltipText: "Save as (ctrl+s)"; onClicked: root.saveAs() }
             IconButton { glyph: 0xf0770; tooltipText: "Load (" + root.keyOf("load") + ")"; onClicked: root.openFiles() }
             IconButton { glyph: 0xf0207; tooltipText: "Export (" + root.keyOf("export") + ")"; onClicked: root.dialog = "export" }
+            IconButton { glyph: 0xf02f9; selected: !!root.refImg; tooltipText: "Open / close reference (" + root.keyOf("reference") + ")"; onClicked: root.runAction("reference") }
           }
         }
 
