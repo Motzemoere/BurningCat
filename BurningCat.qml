@@ -1083,7 +1083,17 @@ Item {
               IconButton { glyph: 0xf06ed; tooltipText: "Zoom in (" + root.keyOf("zoomIn") + ")"; onClicked: root.zoom(1) }
 
               Repeater {
-                model: root.tools
+                model: root.tools.filter(function(t) { return root.shapeTools.indexOf(t.id) < 0 })
+                delegate: toolButton
+              }
+              // Fills the odd cell so the shapes start on their own row; positioners skip zero-size items.
+              Item { width: 1; height: 1; visible: (root.tools.length - root.shapeTools.length) % 2 === 1 }
+              Repeater {
+                model: root.tools.filter(function(t) { return root.shapeTools.indexOf(t.id) >= 0 })
+                delegate: toolButton
+              }
+              Component {
+                id: toolButton
                 IconButton {
                   required property var modelData
                   glyph: modelData.icon
