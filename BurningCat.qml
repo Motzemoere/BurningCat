@@ -74,6 +74,17 @@ Item {
   property var keymap: Pixels.defaultBindings()
   property bool snapshotPending: false  // the gesture's first real change takes the undo snapshot
 
+  // The Reference: a read-only image shown beside the Image.
+  property var refImg: null
+  property string refFile: ""
+  property int refPx: 1
+  property int refCursorX: 0
+  property int refCursorY: 0
+  property var refStartPt: null
+  property var refSel: null      // {x, y, w, h, buf: null}; never floats
+  property bool onRef: false     // keys go to the Reference
+  property bool pickingRef: false // the file list opens a Reference
+
   readonly property bool textEditing: fileField.activeFocus || picker.editing || widthField.activeFocus || heightField.activeFocus
 
   readonly property var tools: [
@@ -104,14 +115,24 @@ Item {
   readonly property int chromeH: bottomRow.implicitHeight + fileField.implicitHeight + statusRow.implicitHeight + layout.spacing * 3
   readonly property int viewW: Math.max(64, window.width - 2 * layout.anchors.margins - sidebar.implicitWidth - topRow.spacing)
   readonly property int viewH: Math.max(64, window.height - 2 * layout.anchors.margins - chromeH)
-  readonly property int fitPx: Math.max(1, Math.floor(Math.min(viewW / imgW, viewH / imgH)))
+  readonly property int paneW: refImg ? Math.max(32, Math.floor((viewW - topRow.spacing) / 2)) : viewW
+  readonly property int fitPx: Math.max(1, Math.floor(Math.min(paneW / imgW, viewH / imgH)))
+  readonly property int refFitPx: refImg ? Math.max(1, Math.floor(Math.min(paneW / refImg.w, viewH / refImg.h))) : 1
+
+  function zoomStep(cur, fit, direction) {
+    var steps = zoomSteps.concat([fit]).sort(function(a, b) { return a - b })
+    if (direction > 0) { for (var i = 0; i < steps.length; i++) if (steps[i] > cur) return steps[i] }
+    else { for (var j = steps.length - 1; j >= 0; j--) if (steps[j] < cur) return steps[j] }
+    return cur
+  }
 
   function zoom(direction) {
-    var steps = zoomSteps.concat([fitPx]).sort(function(a, b) { return a - b })
-    var next = px
-    if (direction > 0) { for (var i = 0; i < steps.length; i++) if (steps[i] > px) { next = steps[i]; break } }
-    else { for (var j = steps.length - 1; j >= 0; j--) if (steps[j] < px) { next = steps[j]; break } }
-    px = next
+    if (onRef) {
+      refPx = zoomStep(refPx, refFitPx, direction)
+      Qt.callLater(function() { refView.centerOn(root.refCursorX, root.refCursorY) })
+      return
+    }
+    px = zoomStep(px, fitPx, direction)
     Qt.callLater(function() { view.centerOn(root.cursorX, root.cursorY) })
   }
 
@@ -156,8 +177,8 @@ Item {
     if (startPt) updatePreview(startPt, { x: cursorX, y: cursorY }, false)
   }
 
-  function pick(x, y) {
-    var c = Pixels.get(img, x, y)
+  function pick(x, y, from) {
+    var c = Pixels.get(from || img, x, y)
     if ((c >>> 24) === 0) { say("Transparent pixel"); return }
     current = Pixels.toHex(c)
     slot = colors.indexOf(current)
@@ -208,8 +229,8 @@ Item {
   }
 
   // ------------------------------------------------------------ selection
-  function rectSel(a, b) {
-    var r = Pixels.clipRect(img, Pixels.normRect(a.x, a.y, b.x, b.y))
+  function rectSel(a, b, from) {
+    var r = Pixels.clipRect(from || img, Pixels.normRect(a.x, a.y, b.x, b.y))
     return r ? { x: r.x, y: r.y, w: r.w, h: r.h, buf: null } : null
   }
 
@@ -258,8 +279,9 @@ Item {
   }
 
   function copySel() {
-    if (!sel) { say("Nothing selected"); return false }
-    var b = sel.buf || Pixels.extract(img, sel)
+    var s = onRef ? refSel : sel
+    if (!s) { say("Nothing selected"); return false }
+    var b = s.buf || Pixels.extract(onRef ? refImg : img, s)
     runJob(["sh", "-c", "base64 -d | wl-copy -t image/png >/dev/null 2>&1"], Png.base64Encode(Png.encode(b)), function(ok) {
       root.say(ok ? "Copied " + b.w + "x" + b.h : "Copy failed (is wl-clipboard installed?)")
     })
@@ -283,6 +305,108 @@ Item {
       root.sel = { x: Math.max(0, Math.min(root.cursorX, root.imgW - buf.w)), y: Math.max(0, Math.min(root.cursorY, root.imgH - buf.h)),
                    w: buf.w, h: buf.h, buf: buf }
     })
+  }
+
+  // ------------------------------------------------------------ reference
+  function openReferenceFiles() {
+    pickingRef = true
+    refreshFiles()
+    dialog = "files"
+  }
+
+  // name is relative to dir. A failed restore forgets the Reference quietly.
+  function openReference(name, restoring) {
+    closeDialog()
+    var fail = function(message) {
+      if (!restoring) { root.say(message); return }
+      root.refFile = ""
+      root.writeState()
+    }
+    runJob(["base64", "-w0", dir + "/" + name], "", function(ok, out) {
+      if (!ok) { fail("Could not read " + name); return }
+      var dec
+      try { dec = Png.decode(Png.base64Decode(out), Pixels.MAX_SIDE) } catch (e) { fail(e.message); return }
+      root.refImg = dec
+      root.refFile = name
+      root.refSel = null
+      root.refStartPt = null
+      root.refCursorX = 0
+      root.refCursorY = 0
+      root.px = root.fitPx
+      root.refPx = root.refFitPx
+      refView.repaintAll()
+      root.writeState()
+      if (!restoring) root.say("Reference " + name)
+    })
+  }
+
+  function closeReference() {
+    refImg = null
+    refFile = ""
+    refSel = null
+    refStartPt = null
+    onRef = false
+    px = fitPx
+    writeState()
+  }
+
+  function switchSide() {
+    if (!refImg) return
+    cancelShape()
+    refStartPt = null
+    onRef = !onRef
+  }
+
+  function setRefCursor(x, y) {
+    refCursorX = Math.max(0, Math.min(refImg.w - 1, x))
+    refCursorY = Math.max(0, Math.min(refImg.h - 1, y))
+    if (refStartPt) refSel = rectSel(refStartPt, { x: refCursorX, y: refCursorY }, refImg)
+  }
+
+  function onRefPressed(x, y, button, mods) {
+    keys.forceActiveFocus()
+    if (!onRef) switchSide()
+    setRefCursor(x, y)
+    if (tool === "eyedropper" || (mods & Qt.AltModifier)) { pick(refCursorX, refCursorY, refImg); return }
+    refStartPt = { x: refCursorX, y: refCursorY }
+    refSel = rectSel(refStartPt, refStartPt, refImg)
+  }
+
+  function onRefMoved(x, y, mods, pressed) {
+    if (pressed || (x >= 0 && y >= 0 && x < refImg.w && y < refImg.h)) setRefCursor(x, y)
+  }
+
+  // Keys that act differently on the Reference; the rest fall through to the Image.
+  function refKey(event) {
+    var ctrl = event.modifiers & Qt.ControlModifier, k = event.key
+    var dx = k === Qt.Key_Left ? -1 : k === Qt.Key_Right ? 1 : 0
+    var dy = k === Qt.Key_Up ? -1 : k === Qt.Key_Down ? 1 : 0
+    if (dx || dy) {
+      if (ctrl) refView.scrollBy(dx, dy)
+      setRefCursor(refCursorX + dx, refCursorY + dy)
+      refView.ensureVisible(refCursorX, refCursorY)
+      return true
+    }
+    if (k === Qt.Key_Space) {
+      var p = { x: refCursorX, y: refCursorY }
+      if (tool === "eyedropper") pick(p.x, p.y, refImg)
+      else if (refStartPt) refStartPt = null
+      else { refStartPt = p; refSel = rectSel(p, p, refImg) }
+      return true
+    }
+    if (k === Qt.Key_Escape) {
+      if (bgMenu) bgMenu = false
+      else if (refStartPt || refSel) { refStartPt = null; refSel = null }
+      else requestClose()
+      return true
+    }
+    var edits = ["erase", "flipH", "flipV", "rotateCw", "rotateCcw"]
+    if (ctrl ? k === Qt.Key_X || k === Qt.Key_V
+             : k === Qt.Key_Delete || k === Qt.Key_Backspace || edits.indexOf(Pixels.actionFor(keymap, event.text)) >= 0) {
+      say("Reference is read-only")
+      return true
+    }
+    return false
   }
 
   // ------------------------------------------------------------ history
@@ -355,6 +479,7 @@ Item {
 
   function onPointerPressed(x, y, button, mods) {
     keys.forceActiveFocus()
+    if (onRef) switchSide()
     setCursor(x, y)
     var erase = button === Qt.RightButton
     if (mods & Qt.AltModifier) { pick(x, y); return }
@@ -402,6 +527,7 @@ Item {
       if (event.key === Qt.Key_Escape) { closeDialog(); return true }
       return false
     }
+    if (onRef && refKey(event)) return true
 
     var ctrl = event.modifiers & Qt.ControlModifier, shift = event.modifiers & Qt.ShiftModifier
     var k = event.key
@@ -476,6 +602,8 @@ Item {
       case "load": openFiles(); break
       case "export": dialog = "export"; break
       case "upscale": dialog = "upscale"; break
+      case "reference": refImg ? closeReference() : openReferenceFiles(); break
+      case "switchSide": switchSide(); break
       case "keys": dialog = "keys"; break
       case "quit": root.requestClose(); break
     }
@@ -655,6 +783,7 @@ Item {
   }
 
   function openFiles() {
+    pickingRef = false
     refreshFiles()
     dialog = "files"
   }
@@ -755,7 +884,7 @@ Item {
   }
 
   function writeState() {
-    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors.slice(0, Pixels.PALETTE_SIZE), extras: colors.slice(Pixels.PALETTE_SIZE), width: imgW, height: imgH, background: bg, keys: Pixels.overridesOf(keymap) }, null, 2) + "\n")
+    stateFile.setText(JSON.stringify({ lastFile: currentFile, palette: colors.slice(0, Pixels.PALETTE_SIZE), extras: colors.slice(Pixels.PALETTE_SIZE), width: imgW, height: imgH, background: bg, keys: Pixels.overridesOf(keymap), referenceFile: refFile }, null, 2) + "\n")
   }
 
   function restoreState() {
@@ -774,6 +903,10 @@ Item {
     keymap = Pixels.bindings(s.keys)
     selectSlot(0)
     if (typeof s.lastFile === "string" && Pixels.cleanName(s.lastFile) === s.lastFile) loadFile(s.lastFile, true)
+    if (typeof s.referenceFile === "string" && s.referenceFile && Pixels.cleanName(s.referenceFile) === s.referenceFile) {
+      refFile = s.referenceFile
+      openReference(refFile, true)
+    }
   }
 
   Component.onCompleted: {
@@ -848,6 +981,13 @@ Item {
     verticalPadding: Style.spacing.xs
     width: Style.spacing.controlHeight
     height: Style.spacing.controlHeight
+  }
+
+  component FocusFrame: Rectangle {
+    anchors.fill: parent
+    color: "transparent"
+    border.width: 2
+    border.color: Color.accent
   }
 
   component Label: Text {
@@ -1003,7 +1143,7 @@ Item {
 
           PixelView {
             id: view
-            width: root.viewW
+            width: root.paneW
             height: root.viewH
             img: root.img
             imgW: root.imgW
@@ -1020,7 +1160,31 @@ Item {
             onPointerPressed: function(x, y, b, m) { root.onPointerPressed(x, y, b, m) }
             onPointerMoved: function(x, y, m, p) { root.onPointerMoved(x, y, m, p) }
             onPointerReleased: function(x, y, m) { root.onPointerReleased(x, y, m) }
-            onZoomRequested: function(d) { root.zoom(d) }
+            onZoomRequested: function(d) { if (root.onRef) root.switchSide(); root.zoom(d) }
+
+            FocusFrame { visible: !!root.refImg && !root.onRef }
+          }
+
+          PixelView {
+            id: refView
+            visible: !!root.refImg
+            width: root.paneW
+            height: root.viewH
+            img: root.refImg
+            imgW: root.refImg ? root.refImg.w : 1
+            imgH: root.refImg ? root.refImg.h : 1
+            px: root.refPx
+            grid: root.grid
+            bg: root.bg
+            cursorX: root.refCursorX
+            cursorY: root.refCursorY
+            sel: root.refSel
+            onPointerPressed: function(x, y, b, m) { root.onRefPressed(x, y, b, m) }
+            onPointerMoved: function(x, y, m, p) { root.onRefMoved(x, y, m, p) }
+            onPointerReleased: function(x, y, m) { root.refStartPt = null }
+            onZoomRequested: function(d) { if (!root.onRef) root.switchSide(); root.zoom(d) }
+
+            FocusFrame { visible: root.onRef }
           }
         }
 
@@ -1114,7 +1278,8 @@ Item {
             id: statusText
             spacing: Style.spacing.md
 
-            Label { text: root.cursorX + "," + root.cursorY }
+            Label { visible: !!root.refImg; text: root.onRef ? "Reference" : "Image"; color: Color.accent }
+            Label { text: root.onRef ? root.refCursorX + "," + root.refCursorY : root.cursorX + "," + root.cursorY }
             Label { text: root.toolLabel(root.tool) + (root.tool === "pixel" ? " " + root.penSize + "x" + root.penSize : ""); opacity: 0.7 }
             Rectangle {
               anchors.verticalCenter: parent.verticalCenter
@@ -1157,8 +1322,9 @@ Item {
         opened: root.dialog === "files"
         dir: root.dir
         files: root.files
-        onChosen: function(name) { root.loadFile(name, false) }
-        onBrowse: root.browseFiles()
+        title: root.pickingRef ? "Open reference" : "Load"
+        onChosen: function(name) { if (root.pickingRef) root.openReference(name, false); else root.loadFile(name, false) }
+        onBrowse: if (root.pickingRef) root.say("A reference opens from " + root.dir); else root.browseFiles()
         onCanceled: root.closeDialog()
       }
 

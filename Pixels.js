@@ -391,6 +391,7 @@ var ACTIONS = [
   ["addColor", "Add color", "a"], ["pipette", "Screen pipette", "I"],
   ["grid", "Grid", "g"], ["background", "Background", "k"], ["zoomIn", "Zoom in", "+"], ["zoomOut", "Zoom out", "-"],
   ["new", "New", "n"], ["save", "Save", "s"], ["load", "Load", "o"], ["export", "Export", "e"], ["upscale", "Upscale", "u"],
+  ["reference", "Open / close reference", "R"], ["switchSide", "Switch image / reference", "w"],
   ["keys", "Keybindings", "K"], ["quit", "Quit", "q"],
 ]
 
