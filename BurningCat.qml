@@ -55,7 +55,7 @@ Item {
   property int px: fitPx
   property int cursorX: 0
   property int cursorY: 0
-  property var startPt: null     // first corner of a shape or selection in progress
+  property var startPt: null     // first corner of a shape or selection in progress; base: the selection it adds to
   property var sel: null         // {x, y, w, h, buf, mask}; buf is set while it floats, mask as in Pixels.selected
   property var preview: []
   property var drag: null        // mouse gesture in progress
@@ -206,7 +206,7 @@ Item {
   function isShape(t) { return shapeTools.indexOf(t) >= 0 }
 
   function updatePreview(a, b, keepRatio) {
-    if (tool === "select") { sel = rectSel(a, b); return }
+    if (tool === "select") { sel = joinSel(a.base, rectSel(a, b)); return }
     preview = Pixels.shape(tool, a.x, a.y, b.x, b.y, keepRatio)
   }
 
@@ -236,6 +236,21 @@ Item {
   }
 
   function inSel(x, y) { return Pixels.selected(sel, x, y) }
+
+  // Selection s with r added; either may be null.
+  function joinSel(s, r) {
+    if (!s || !r) return s || r
+    var u = Pixels.union(s, r)
+    u.buf = null
+    return u
+  }
+
+  // Start a rectangle at p that adds to the selection if add.
+  function startSel(p, add) {
+    if (!add || (sel && sel.buf)) commitSelection()
+    startPt = { x: p.x, y: p.y, base: sel }
+    sel = joinSel(sel, rectSel(p, p))
+  }
 
   // s with the Object at (x, y) of src, or that Object alone unless add.
   function wandSel(s, src, x, y, add) {
@@ -376,7 +391,7 @@ Item {
   function setRefCursor(x, y) {
     refCursorX = Math.max(0, Math.min(refImg.w - 1, x))
     refCursorY = Math.max(0, Math.min(refImg.h - 1, y))
-    if (refStartPt) refSel = rectSel(refStartPt, { x: refCursorX, y: refCursorY }, refImg)
+    if (refStartPt) refSel = joinSel(refStartPt.base, rectSel(refStartPt, { x: refCursorX, y: refCursorY }, refImg))
   }
 
   function onRefPressed(x, y, button, mods) {
@@ -385,8 +400,8 @@ Item {
     setRefCursor(x, y)
     if (tool === "eyedropper" || (mods & Qt.AltModifier)) { pick(refCursorX, refCursorY, refImg); return }
     if (tool === "wand") { refSel = wandSel(refSel, refImg, refCursorX, refCursorY, mods & Qt.ShiftModifier); return }
-    refStartPt = { x: refCursorX, y: refCursorY }
-    refSel = rectSel(refStartPt, refStartPt, refImg)
+    refStartPt = { x: refCursorX, y: refCursorY, base: mods & Qt.ShiftModifier ? refSel : null }
+    setRefCursor(refCursorX, refCursorY)
   }
 
   function onRefMoved(x, y, mods, pressed) {
@@ -409,7 +424,7 @@ Item {
       if (tool === "eyedropper") pick(p.x, p.y, refImg)
       else if (tool === "wand") refSel = wandSel(refSel, refImg, p.x, p.y, event.modifiers & Qt.ShiftModifier)
       else if (refStartPt) refStartPt = null
-      else { refStartPt = p; refSel = rectSel(p, p, refImg) }
+      else { refStartPt = { x: p.x, y: p.y, base: event.modifiers & Qt.ShiftModifier ? refSel : null }; setRefCursor(p.x, p.y) }
       return true
     }
     if (k === Qt.Key_Escape) {
@@ -479,19 +494,19 @@ Item {
     else if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([p], penSize), currentInt()) }
     else if (tool === "eyedropper") pick(p.x, p.y)
     else if (tool === "fill") fillAt(p.x, p.y, currentInt())
+    else if (tool === "select" && !startPt) startSel(p, add)
     else if (!startPt) {
-      if (tool === "select") commitSelection()
       startPt = p
       updatePreview(p, p, keepRatio)
     } else {
-      if (tool === "select") sel = rectSel(startPt, p)
+      if (tool === "select") sel = joinSel(startPt.base, rectSel(startPt, p))
       else commitShape(startPt, p, keepRatio)
       startPt = null
     }
   }
 
   function cancel() {
-    if (startPt) { cancelShape(); if (tool === "select") sel = null }
+    if (startPt) { if (tool === "select") sel = startPt.base; cancelShape() }
     else if (sel) commitSelection()
     else root.requestClose()
   }
@@ -506,8 +521,9 @@ Item {
     if (tool === "pixel") { commitSelection(); snapshotPending = true; drawPoints(Pixels.stamp([{ x: x, y: y }], penSize), erase ? 0 : currentInt()); drag.erase = erase }
     else if (tool === "eyedropper") pick(x, y)
     else if (tool === "fill") fillAt(x, y, erase ? 0 : currentInt())
-    else if ((tool === "select" || (tool === "wand" && !(mods & Qt.ShiftModifier))) && inSel(x, y)) { lift(); drag.move = true }
+    else if ((tool === "select" || tool === "wand") && !(mods & Qt.ShiftModifier) && inSel(x, y)) { lift(); drag.move = true }
     else if (tool === "wand") wandAt(x, y, mods & Qt.ShiftModifier)
+    else if (tool === "select") startSel({ x: x, y: y }, mods & Qt.ShiftModifier)
     else {
       commitSelection()
       startPt = { x: x, y: y }

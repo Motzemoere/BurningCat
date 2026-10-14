@@ -12,8 +12,8 @@ It is inspired by MS Paint.
 - Canvas from 1x1 up to 512x512, with zoom, grid, and resize that pads or crops
 - Pen (1x1 to 8x8), eraser, eyedropper, color fill, and pixel shapes:
   line, rectangle, circle, triangle, hexagon, octagon
-- Selection: move, copy, cut, paste, flip, rotate. Copy and paste use the system
-  clipboard, so you can paste images to and from other apps
+- Selection: move, copy, cut, paste, flip, rotate; shift+drag adds more rectangles.
+  Copy and paste use the system clipboard, so you can paste images to and from other apps
 - Magic wand: click an outline to select it and everything inside it;
   shift+click adds more objects
 - Reference: open a second image read-only beside the canvas (`shift+r`),
@@ -84,7 +84,7 @@ The UI is QML; the drawing logic lives in plain JavaScript (`Pixels.js`,
 - Upscaling algorithms: choose the upscaling factor and add custom algorithms,
   e.g. Sierpiński (turn one pixel into a 3x3 block and leave the middle pixel empty)
 - Align selected pixels to the page: center, horizontally, vertically
-- Multiple selections: select several pixel groups and align them (horizontally, vertically, evenly spaced, etc.)
+- Align selected pixel groups to each other (horizontally, vertically, evenly spaced, etc.)
 
 ## License
 
