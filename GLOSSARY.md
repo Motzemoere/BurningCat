@@ -12,6 +12,10 @@ _Avoid_: Document, canvas, file
 The pixels picked for moving, copying or transforming. It floats above the Image once moved or transformed, until committed.
 _Avoid_: Marquee, region
 
+**Group**:
+A connected part of a Selection; the unit that alignment moves, placed by the box around its opaque pixels.
+_Avoid_: Piece, island, component
+
 **Magic wand**:
 The tool that selects the Object under the clicked pixel instead of a dragged rectangle.
 _Avoid_: Wand select, object select, freeform selection

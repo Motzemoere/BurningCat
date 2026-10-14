@@ -299,6 +299,14 @@ Item {
     sel = { x: sel.x, y: sel.y, w: b.w, h: b.h, buf: b, mask: sel.mask ? fn(sel.mask) : null }
   }
 
+  function alignSel(id) {
+    if (!sel) return
+    lift()
+    var a = Pixels.align(sel.buf, sel.mask, id)
+    if (!a) { say("Select two or more groups to align"); return }
+    sel = { x: sel.x, y: sel.y, w: sel.w, h: sel.h, buf: a.buf, mask: a.mask }
+  }
+
   function deleteSel() {
     if (!sel) return
     if (!sel.buf) {
@@ -433,9 +441,9 @@ Item {
       else requestClose()
       return true
     }
-    var edits = ["erase", "flipH", "flipV", "rotateCw", "rotateCcw"]
+    var edits = ["erase", "flipH", "flipV", "rotateCw", "rotateCcw"], action = Pixels.actionFor(keymap, event.text)
     if (ctrl ? k === Qt.Key_X || k === Qt.Key_V
-             : k === Qt.Key_Delete || k === Qt.Key_Backspace || edits.indexOf(Pixels.actionFor(keymap, event.text)) >= 0) {
+             : k === Qt.Key_Delete || k === Qt.Key_Backspace || edits.indexOf(action) >= 0 || Pixels.ALIGN[action]) {
       say("Reference is read-only")
       return true
     }
@@ -615,6 +623,7 @@ Item {
 
   function runAction(id) {
     if (id === "pixel" && tool === "pixel") { cyclePenSize(1); return }
+    if (Pixels.ALIGN[id]) { alignSel(id); return }
     for (var i = 0; i < tools.length; i++) if (tools[i].id === id) { setTool(id); return }
     switch (id) {
       case "erase": erase(); break
@@ -1144,13 +1153,19 @@ Item {
                 }
               }
               Repeater {
+                // [action, text or glyph, label]
                 model: (root.tool === "select" || root.tool === "wand") && !root.bgMenu ? [["flipH", "↔", "Flip horizontal"], ["flipV", "↕", "Flip vertical"],
-                                                 ["rotateCcw", "⟲", "Rotate counter-clockwise"], ["rotateCw", "⟳", "Rotate clockwise"]] : []
+                                                 ["rotateCcw", "⟲", "Rotate counter-clockwise"], ["rotateCw", "⟳", "Rotate clockwise"],
+                                                 ["alignLeft", 0xf11c2, "Align left"], ["alignRight", 0xf11c4, "Align right"],
+                                                 ["alignTop", 0xf11c7, "Align top"], ["alignBottom", 0xf11c5, "Align bottom"],
+                                                 ["alignHCenter", 0xf11c3, "Align centers horizontally"], ["alignVCenter", 0xf11c6, "Align centers vertically"],
+                                                 ["distributeH", 0xf1962, "Space evenly horizontally"], ["distributeV", 0xf1963, "Space evenly vertically"]] : []
                 IconButton {
                   required property var modelData
                   width: root.slotSize
                   height: width
-                  text: modelData[1]
+                  glyph: typeof modelData[1] === "number" ? modelData[1] : 0
+                  text: typeof modelData[1] === "string" ? modelData[1] : ""
                   fontSize: Style.font.caption
                   tooltipText: modelData[2] + " (" + root.keyOf(modelData[0]) + ")"
                   onClicked: root.runAction(modelData[0])

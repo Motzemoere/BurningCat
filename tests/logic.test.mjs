@@ -15,7 +15,7 @@ const load = (file, names) => {
   return G
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
-  "fill", "object", "selected", "union", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
+  "fill", "object", "selected", "union", "groups", "align", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
   "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "autosaveName", "exportName", "History",
   "ACTIONS", "bindable", "defaultBindings", "rebind", "bindings", "overridesOf", "actionFor", "keyLabel"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
@@ -77,6 +77,30 @@ group("magic wand")
   const c = img(5, 5, d.data); c.data[0] = B
   P.clear(c, o)
   t("masked clear keeps unselected pixels", P.get(c, 0, 0) === B && P.isEmpty(c) === false && P.get(c, 2, 2) === 0)
+}
+
+group("align")
+{
+  const R = RED, B = BLUE
+  // Two Groups: a red pixel at (0,0) and a blue 2x1 bar at (2,2), mask with a transparent margin around the bar.
+  const buf = img(4, 4, [R, 0, 0, 0,  0, 0, 0, 0,  0, 0, B, B,  0, 0, 0, 0])
+  const mask = img(4, 4, [1, 0, 0, 0,  0, 0, 1, 1,  0, 0, 1, 1,  0, 0, 0, 0])
+  const gs = P.groups(buf, mask)
+  t("groups are mask parts boxed by opaque pixels", gs.length === 2 && gs[1].x === 2 && gs[1].w === 2 && gs[1].h === 1)
+  const l = P.align(buf, mask, "alignLeft")
+  t("left moves the bar to the leftmost edge", P.get(l.buf, 0, 2) === B && P.get(l.buf, 1, 2) === B && P.get(l.buf, 3, 2) === 0)
+  t("left keeps the leftmost group", P.get(l.buf, 0, 0) === R)
+  t("the mask moves with its group", l.mask.data[2 * 4 + 0] === 1 && l.mask.data[2 * 4 + 3] === 0)
+  const b = P.align(buf, mask, "alignBottom")
+  t("bottom moves the pixel down", P.get(b.buf, 0, 2) === R && P.get(b.buf, 0, 0) === 0)
+  const c = P.align(buf, mask, "alignHCenter")
+  t("center uses the span of all groups", P.get(c.buf, 2, 0) === R && P.get(c.buf, 1, 2) === B && P.get(c.buf, 2, 2) === B)
+  const row = img(7, 1, [R, R, 0, B, 0, 0, R])
+  const d = P.align(row, null, "distributeH")
+  t("no mask is one group", d === null)
+  const rowMask = img(7, 1, [1, 1, 0, 1, 0, 0, 1])
+  const e = P.align(row, rowMask, "distributeH")
+  t("evenly spaced keeps the ends and equalizes gaps", eq(e.buf, img(7, 1, [R, R, 0, 0, B, 0, R])))
 }
 
 group("shapes")

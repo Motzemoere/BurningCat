@@ -174,6 +174,69 @@ function union(a, b) {
   return { x: x, y: y, w: w, h: h, mask: mask }
 }
 
+// Alignment action id -> [axis, where]: where 0 start, 0.5 center, 1 end, -1 evenly spaced.
+var ALIGN = {
+  alignLeft: ["x", 0], alignHCenter: ["x", 0.5], alignRight: ["x", 1],
+  alignTop: ["y", 0], alignVCenter: ["y", 0.5], alignBottom: ["y", 1],
+  distributeH: ["x", -1], distributeV: ["y", -1],
+}
+
+// The Groups of a floating selection: 8-connected parts of mask (the whole
+// buf without one), each as {cells, x, y, w, h} with cells its buf indices and
+// x..h the box of its opaque pixels. Groups without opaque pixels are left out.
+function groups(buf, mask) {
+  var w = buf.w, h = buf.h, seen = new Uint8Array(w * h), out = []
+  var inMask = function(i) { return !mask || mask.data[i] === 1 }
+  for (var start = 0; start < w * h; start++) {
+    if (seen[start] || !inMask(start)) continue
+    var cells = [], stack = [start], x0 = w, y0 = h, x1 = -1, y1 = -1
+    seen[start] = 1
+    while (stack.length) {
+      var i = stack.pop(), x = i % w, y = (i - x) / w
+      cells.push(i)
+      if (buf.data[i]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) }
+      for (var dy = -1; dy <= 1; dy++)
+        for (var dx = -1; dx <= 1; dx++) {
+          var j = i + dy * w + dx
+          if (x + dx >= 0 && x + dx < w && y + dy >= 0 && y + dy < h && !seen[j] && inMask(j)) { seen[j] = 1; stack.push(j) }
+        }
+    }
+    if (x1 >= 0) out.push({ cells: cells, x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 })
+  }
+  return out
+}
+
+// Align the Groups of a floating selection along one axis by ALIGN[id], within
+// the span their boxes cover. Returns {buf, mask} of the same size, or null
+// with fewer than two Groups. Unselected cells moved outside the buf are dropped.
+function align(buf, mask, id) {
+  var gs = groups(buf, mask)
+  if (gs.length < 2) return null
+  var a = ALIGN[id][0], where = ALIGN[id][1], s = a === "x" ? "w" : "h"
+  var lo = Infinity, hi = -Infinity, total = 0
+  gs.forEach(function(g) { lo = Math.min(lo, g[a]); hi = Math.max(hi, g[a] + g[s]); total += g[s] })
+  var gap = (hi - lo - total) / (gs.length - 1), pos = lo
+  gs.slice().sort(function(p, q) { return p[a] - q[a] }).forEach(function(g) {
+    g.to = where < 0 ? Math.round(pos) : Math.round(lo + where * (hi - lo - g[s]))
+    pos += g[s] + gap
+  })
+  var out = create(buf.w, buf.h), outMask = create(buf.w, buf.h), moved = new Uint8Array(buf.w * buf.h)
+  gs.forEach(function(g) { g.cells.forEach(function(i) { moved[i] = 1 }) })
+  for (var i = 0; i < buf.w * buf.h; i++)
+    if (!moved[i] && (!mask || mask.data[i])) outMask.data[i] = 1
+  gs.forEach(function(g) {
+    var dx = a === "x" ? g.to - g.x : 0, dy = a === "y" ? g.to - g.y : 0
+    g.cells.forEach(function(i) {
+      var x = i % buf.w + dx, y = (i - i % buf.w) / buf.w + dy
+      if (x < 0 || y < 0 || x >= buf.w || y >= buf.h) return
+      var j = y * buf.w + x
+      outMask.data[j] = 1
+      if (buf.data[i]) out.data[j] = buf.data[i]
+    })
+  })
+  return { buf: out, mask: outMask }
+}
+
 // Bresenham line, both endpoints included.
 function line(x0, y0, x1, y1) {
   var pts = [], dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0)
@@ -445,6 +508,9 @@ var ACTIONS = [
   ["erase", "Remove pixel / selection", "c"],
   ["flipH", "Flip horizontal", "f"], ["flipV", "Flip vertical", "F"],
   ["rotateCw", "Rotate clockwise", "]"], ["rotateCcw", "Rotate counter-clockwise", "["],
+  ["alignLeft", "Align left", ","], ["alignHCenter", "Align centers horizontally", "."], ["alignRight", "Align right", "/"],
+  ["alignTop", "Align top", "<"], ["alignVCenter", "Align centers vertically", ">"], ["alignBottom", "Align bottom", "?"],
+  ["distributeH", "Space evenly horizontally", "d"], ["distributeV", "Space evenly vertically", "D"],
   ["slot21", "Color slot 21", "z"], ["slot22", "Color slot 22", "x"],
   ["addColor", "Add color", "a"], ["pipette", "Screen pipette", "I"],
   ["grid", "Grid", "g"], ["background", "Background", "k"], ["zoomIn", "Zoom in", "+"], ["zoomOut", "Zoom out", "-"],

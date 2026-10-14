@@ -14,6 +14,7 @@ It is inspired by MS Paint.
   line, rectangle, circle, triangle, hexagon, octagon
 - Selection: move, copy, cut, paste, flip, rotate; shift+drag adds more rectangles.
   Copy and paste use the system clipboard, so you can paste images to and from other apps
+- Align the separate groups in a selection by their edges or centers, or space them evenly
 - Magic wand: click an outline to select it and everything inside it;
   shift+click adds more objects
 - Reference: open a second image read-only beside the canvas (`shift+r`),
@@ -81,10 +82,8 @@ The UI is QML; the drawing logic lives in plain JavaScript (`Pixels.js`,
 
 ## Next ideas
 
-- Upscaling algorithms: choose the upscaling factor and add custom algorithms,
-  e.g. Sierpiński (turn one pixel into a 3x3 block and leave the middle pixel empty)
+- Custom upscaling algorithms, e.g. Sierpiński (turn one pixel into a 3x3 block and leave the middle pixel empty)
 - Align selected pixels to the page: center, horizontally, vertically
-- Align selected pixel groups to each other (horizontally, vertically, evenly spaced, etc.)
 
 ## License
 
