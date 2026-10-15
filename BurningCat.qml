@@ -886,7 +886,7 @@ Item {
   }
 
   property int exportIndex: 1
-  readonly property var exportScales: [4, 8, 16]
+  readonly property var exportScales: [4, 8, 16, 32, 64]
   property int exportBg: 0
   readonly property var exportBgs: [{ label: "Transparent", color: "" }, { label: "Grey", color: Pixels.GREY_BG },
                                     { label: "White", color: "#ffffff" }, { label: "Black", color: "#000000" },
@@ -902,6 +902,8 @@ Item {
     else if (event.text === "4") exportImage(4)
     else if (event.text === "8") exportImage(8)
     else if (event.text === "1") exportImage(16)
+    else if (event.text === "3") exportImage(32)
+    else if (event.text === "6") exportImage(64)
     else return false
     return true
   }
