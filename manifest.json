@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "motzemoere.burningcat",
   "name": "BurningCat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "motzemoere",
   "description": "Pixel art editor in a tiled window, styled by the Omarchy theme",
   "kinds": [
