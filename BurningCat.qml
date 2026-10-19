@@ -885,8 +885,8 @@ Item {
     exists(name, function(yes) { if (yes) root.ask("Overwrite " + name + "?", write); else write() })
   }
 
-  property int exportIndex: 1
-  readonly property var exportScales: [4, 8, 16, 32, 64]
+  property int exportIndex: 2
+  readonly property var exportScales: [1, 4, 8, 16, 32, 64]
   property int exportBg: 0
   readonly property var exportBgs: [{ label: "Transparent", color: "" }, { label: "Grey", color: Pixels.GREY_BG },
                                     { label: "White", color: "#ffffff" }, { label: "Black", color: "#000000" },

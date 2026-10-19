@@ -23,7 +23,7 @@ It is inspired by MS Paint.
   image brings its own. Color picker with HSV, RGB and HSL modes, plus a
   pipette that picks colors from anywhere on screen
 - Undo and redo for every tool
-- PNG save and load, and export upscaled 4x, 8x, 16x, 32x or 64x without blur
+- PNG save and load, and export at native size or upscaled 4x, 8x, 16x, 32x or 64x without blur
 - Every action has a key, and you can rebind them in the app
 
 No layers, animation, symmetry, anti-aliasing or filled shapes, by design.
