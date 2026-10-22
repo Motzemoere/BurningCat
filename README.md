@@ -9,7 +9,8 @@ It is inspired by MS Paint.
 
 ## Features
 
-- Canvas from 1x1 up to 512x512, with zoom, grid, and resize that pads or crops
+- Canvas from 1x1 up to 512x512, with zoom, grid, a choice of background behind
+  transparent pixels, resize that pads or crops, and upscale by 2x, 3x or 4x
 - Pen (1x1 to 8x8), eraser, eyedropper, color fill, and pixel shapes:
   line, rectangle, circle, triangle, hexagon, octagon
 - Selection: move, copy, cut, paste, flip, rotate; shift+drag adds more rectangles.
