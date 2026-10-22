@@ -303,8 +303,10 @@ Item {
     if (!sel) return
     lift()
     var a = Pixels.align(sel.buf, sel.mask, id)
-    if (!a) { say("Select two or more groups to align"); return }
-    sel = { x: sel.x, y: sel.y, w: sel.w, h: sel.h, buf: a.buf, mask: a.mask }
+    if (a) { sel = { x: sel.x, y: sel.y, w: sel.w, h: sel.h, buf: a.buf, mask: a.mask }; return }
+    var p = Pixels.alignToPage(sel.buf, sel.mask, sel.x, sel.y, imgW, imgH, id)
+    if (!p) { say("Select two or more groups to space evenly"); return }
+    moveSel(p.dx, p.dy)
   }
 
   function deleteSel() {

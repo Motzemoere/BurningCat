@@ -15,7 +15,7 @@ const load = (file, names) => {
   return G
 }
 const P = load("Pixels.js", ["create", "get", "set", "isEmpty", "parseHex", "toHex", "toCss", "hsvToHex", "hexToHsv", "hsvToHsl", "hslToHsv", "PALETTE_SIZE",
-  "fill", "object", "selected", "union", "groups", "align", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
+  "fill", "object", "selected", "union", "groups", "align", "alignToPage", "line", "stamp", "flatten", "ellipse", "shape", "normRect", "clipRect", "extract", "clear", "blit", "flipH", "flipV", "rotate",
   "resize", "scale", "topColors", "mergePalette", "themePalette", "timestampName", "cleanName", "autosaveName", "exportName", "History",
   "ACTIONS", "bindable", "defaultBindings", "rebind", "bindings", "overridesOf", "actionFor", "keyLabel"])
 const Z = load("Png.js", ["base64Encode", "base64Decode", "crc32", "inflate", "Deflater", "encode", "decode"])
@@ -101,6 +101,14 @@ group("align")
   const rowMask = img(7, 1, [1, 1, 0, 1, 0, 0, 1])
   const e = P.align(row, rowMask, "distributeH")
   t("evenly spaced keeps the ends and equalizes gaps", eq(e.buf, img(7, 1, [R, R, 0, 0, B, 0, R])))
+  // One Group: a pixel at (1,0) of a 3x1 selection floating at (2,5) on a 10x10 page.
+  const one = img(3, 1, [0, R, 0])
+  const pr = P.alignToPage(one, null, 2, 5, 10, 10, "alignRight")
+  t("one group aligns to the page edge", pr.dx === 6 && pr.dy === 0)
+  const pc = P.alignToPage(one, null, 2, 0, 10, 10, "alignVCenter")
+  t("one group centers on the page", pc.dx === 0 && pc.dy === 5)
+  t("page alignment needs exactly one group", P.alignToPage(buf, mask, 0, 0, 10, 10, "alignLeft") === null)
+  t("one group is not spaced evenly", P.alignToPage(one, null, 0, 0, 10, 10, "distributeH") === null)
 }
 
 group("shapes")

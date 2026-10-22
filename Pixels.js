@@ -237,6 +237,17 @@ function align(buf, mask, id) {
   return { buf: out, mask: outMask }
 }
 
+// Offset {dx, dy} that aligns the single Group of a floating selection at
+// (x, y) to a w x h page by ALIGN[id]. Null unless there is exactly one Group,
+// or for evenly spaced ids.
+function alignToPage(buf, mask, x, y, w, h, id) {
+  var gs = groups(buf, mask), a = ALIGN[id][0], where = ALIGN[id][1]
+  if (gs.length !== 1 || where < 0) return null
+  var g = gs[0], s = a === "x" ? "w" : "h", page = a === "x" ? w : h
+  var d = Math.round(where * (page - g[s])) - g[a] - (a === "x" ? x : y)
+  return { dx: a === "x" ? d : 0, dy: a === "y" ? d : 0 }
+}
+
 // Bresenham line, both endpoints included.
 function line(x0, y0, x1, y1) {
   var pts = [], dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0)
