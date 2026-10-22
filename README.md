@@ -44,6 +44,12 @@ Then bind a key to open and close it in `~/.config/hypr/bindings.lua`:
 o.bind("SUPER + ALT + P", "BurningCat", "omarchy-shell shell toggle motzemoere.burningcat")
 ```
 
+Update to the latest version:
+
+```bash
+omarchy plugin update motzemoere.burningcat
+```
+
 ## Remove
 
 ```bash
